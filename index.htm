@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Cube Drawing Trainer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0;
+      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1f; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+         color: #eee; touch-action: none; }
+  #canvas { display: block; position: fixed; inset: 0; touch-action: none; }
+  body.mode-pan #canvas { cursor: grab; }
+  body.mode-pan.panning #canvas { cursor: grabbing; }
+  body.mode-edit #canvas { cursor: crosshair; }
+
+  #panels {
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px;
+    width: 164px; max-height: calc(100vh - 140px);
+    overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; gap: 4px;
+    z-index: 9; pointer-events: none; scrollbar-width: thin;
+  }
+  .panel {
+    background: rgba(15, 15, 20, 0.68);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    border: 1px solid rgba(70, 70, 90, 0.55);
+    padding: 5px 8px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px; color: #d0d0d0; line-height: 1.45;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  }
+  .panel-title {
+    font-size: 9px; color: #999; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 3px;
+    display: flex; justify-content: space-between; gap: 6px; font-weight: 600;
+  }
+  .cnt { color: #8affb8; }
+  .hint { color: #888; font-style: italic; font-size: 10.5px; }
+  .row {
+    padding: 2px 0; font-variant-numeric: tabular-nums; white-space: nowrap;
+    border-bottom: 1px solid rgba(70, 70, 90, 0.15);
+    display: flex; justify-content: space-between; gap: 6px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .lbl { color: #999; }
+  .row .val { text-align: right; }
+  .vp-ok { color: #ffffff; }
+  .vp-bad { color: #ff5c5c; }
+  .vp-none { color: #888; }
+  .good { color: #8affb8; }
+  .ok { color: #ffd888; }
+  .bad { color: #ff5c5c; }
+
+  #topRightControls {
+    position: fixed; top: calc(8px + env(safe-area-inset-top)); right: 8px;
+    width: 176px; display: flex; flex-direction: column; gap: 8px;
+    align-items: stretch; z-index: 10;
+  }
+  .top-box {
+    background: rgba(20, 20, 25, 0.92);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #3a3a45;
+    display: flex; align-items: center; padding: 3px; width: 100%;
+  }
+  #statsBox { gap: 6px; }
+  #toolBox { flex-direction: column; align-items: stretch; padding: 0; overflow: hidden; }
+  .tool-indicator {
+    padding: 7px 8px; font-size: 10px; color: #8affb8;
+    text-align: center; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.4px; border-bottom: 1px solid #3a3a45;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums; width: 100%;
+  }
+  .tool-indicator.edit { color: #ffd888; }
+  .tool-indicator.pan { color: #a0e8ff; }
+  .tool-bottom {
+    display: flex; align-items: center; padding: 3px 0; width: 100%;
+  }
+  .tb-seg {
+    display: flex; flex: 1; height: 26px; margin: 0 3px; min-width: 0;
+  }
+  .tb-seg-btn {
+    flex: 1 1 0; padding: 0 2px;
+    background: transparent; color: #999; border: 1px solid #444; border-right: none;
+    font-size: 9px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    min-width: 0; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; text-align: center;
+  }
+  .tb-seg-btn:last-child { border-right: 1px solid #444; }
+  .tb-seg-btn.active { background: #4a7aff; color: #fff; border-color: #6a9aff; }
+  .tb-seg-btn[data-ui-mode].active { background: #ff8a4a; border-color: #ffaa6a; }
+  .tb-seg-btn[data-ui-mode="pan"].active { background: #4ac0ff; border-color: #6ad0ff; }
+  .help-circle {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #383844; border: 1px solid #555;
+    color: #fff; font-weight: 700; font-size: 13px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    display: flex; align-items: center; justify-content: center;
+    flex: 0 0 auto;
+  }
+  .help-circle:active { background: #4a4a5a; }
+
+  #bottomBar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; gap: 16px;
+    padding: 6px 12px; padding-bottom: calc(6px + env(safe-area-inset-bottom));
+    background: rgba(20, 20, 25, 0.92);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid #2a2a35; z-index: 10; align-items: stretch;
+  }
+  .bb-cell {
+    display: flex; align-items: center; gap: 2px;
+    height: 38px;
+    background: rgba(35, 35, 45, 0.75);
+    border: 1px solid #3a3a45; padding: 0 4px;
+  }
+  .bb-fov { flex: 2.4 1 0; min-width: 0; }
+  .bb-display { flex: 1.7 1 0; min-width: 0; padding: 0; }
+  .bb-actions { flex: 1.1 1 0; min-width: 0; padding: 0; }
+  .bb-btn {
+    flex: 1; height: 100%; padding: 0 3px;
+    background: transparent; color: #ccc; border: none; border-right: 1px solid #3a3a45;
+    font-size: 10px; font-weight: 500; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; white-space: nowrap;
+    min-width: 0; display: flex; align-items: center; justify-content: center;
+    overflow: hidden; font-variant-numeric: tabular-nums;
+  }
+  .bb-btn:last-child { border-right: none; }
+  .bb-btn:active:not(:disabled) { background: rgba(80, 80, 100, 0.6); }
+  .bb-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .bb-btn.active { background: #4a7aff; color: #fff; }
+  .bb-actions .bb-btn { font-size: 15px; }
+  #fovSlider {
+    -webkit-appearance: none; appearance: none;
+    flex: 1 1 20px; min-width: 20px;
+    height: 4px; background: #3a3a45; outline: none;
+    cursor: pointer; margin: 0 2px; touch-action: auto;
+  }
+  #fovSlider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #4a7aff; cursor: pointer; border: 1px solid #6a9aff;
+  }
+  #fovSlider::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #4a7aff; cursor: pointer; border: 1px solid #6a9aff;
+  }
+  #fovSlider:disabled { opacity: 0.4; cursor: not-allowed; }
+  #fovSlider:disabled::-webkit-slider-thumb { background: #555; border-color: #666; }
+  .fov-val {
+    font-size: 10px; color: #ccc; min-width: 26px; text-align: right;
+    font-variant-numeric: tabular-nums; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: flex-end;
+  }
+  .bb-fov .bb-btn {
+    flex: 0 0 24px; border: 1px solid #444;
+    margin-left: 2px; height: 24px; font-size: 11px; font-weight: 700;
+  }
+  .bb-fov .bb-btn.active { background: #4a7aff; border-color: #6a9aff; color: #fff; }
+
+  #helpOverlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  #helpOverlay.show { display: flex; }
+  .help-box {
+    background: #1e1e28; border: 1px solid #3a3a45;
+    max-width: 560px; max-height: 90vh; width: 100%;
+    overflow-y: auto; padding: 22px 24px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    color: #ddd; font-size: 13px; line-height: 1.6;
+  }
+  .help-box h2 { font-size: 17px; color: #fff; margin-bottom: 14px; font-weight: 600; }
+  .help-box h3 {
+    font-size: 12px; color: #8affb8; margin: 16px 0 6px;
+    text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
+  }
+  .help-box p { margin-bottom: 8px; }
+  .help-box ol, .help-box ul { padding-left: 20px; margin-bottom: 8px; }
+  .help-box li { margin-bottom: 4px; }
+  .help-box b { color: #fff; }
+  .help-close {
+    margin-top: 18px; width: 100%; padding: 12px;
+    background: #4a7aff; color: #fff; border: none;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .help-close:active { background: #3a6aef; }
+  .help-legend { display: flex; gap: 14px; margin-top: 6px; font-size: 12px; }
+  .help-legend span { display: inline-flex; align-items: center; gap: 4px; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="panels">
+  <div class="panel" id="panelCube" style="display:none">
+    <div class="panel-title"><span>Углы рёбер</span><span id="cubeCount" class="cnt"></span></div>
+    <div id="cubeRows"><div class="hint">—</div></div>
+  </div>
+  <div class="panel" id="panelVP" style="display:none">
+    <div class="panel-title"><span>Точки схода</span></div>
+    <div id="vpRows"><div class="hint">—</div></div>
+  </div>
+  <div class="panel" id="panelVert" style="display:none">
+    <div class="panel-title"><span>Вертикали</span><span id="vertCount" class="cnt"></span></div>
+    <div id="vertRows"><div class="hint">—</div></div>
+  </div>
+  <div class="panel" id="panelTop" style="display:none">
+    <div class="panel-title"><span>Верхние рёбра</span><span id="topCount" class="cnt"></span></div>
+    <div id="topRows"><div class="hint">—</div></div>
+  </div>
+  <div class="panel" id="panelVal">
+    <div id="valRows"><div class="hint">—</div></div>
+  </div>
+</div>
+
+<div id="topRightControls">
+  <div class="top-box" id="statsBox">
+    <div class="tb-seg">
+      <button class="tb-seg-btn" data-mode="none" title="Скрыть">∅</button>
+      <button class="tb-seg-btn active" data-mode="val" title="Валидация">Вал</button>
+      <button class="tb-seg-btn" data-mode="full" title="Полная">Всё</button>
+    </div>
+    <button class="help-circle" id="helpBtn" title="Справка">?</button>
+  </div>
+  <div class="top-box" id="toolBox">
+    <div class="tool-indicator" id="toolIndicator">Стартовое ребро</div>
+    <div class="tool-bottom">
+      <div class="tb-seg">
+        <button class="tb-seg-btn active" data-ui-mode="standard" title="Стандарт">Стд</button>
+        <button class="tb-seg-btn" data-ui-mode="edit" title="Редактирование">Ред</button>
+        <button class="tb-seg-btn" data-ui-mode="pan" title="Перемещение">Пан</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bottomBar">
+  <div class="bb-cell bb-fov">
+    <input type="range" id="fovSlider" min="20" max="140" step="1" value="60">
+    <span id="fovValue" class="fov-val">60°</span>
+    <button class="bb-btn active" id="autoFovBtn" title="Авто FOV">A</button>
+  </div>
+  <div class="bb-cell bb-display">
+    <button class="bb-btn" id="horizonBtn" title="Горизонт">Гор</button>
+    <button class="bb-btn" id="ghostBtn" title="Идеальный куб">Куб</button>
+    <button class="bb-btn" id="circlesBtn" title="Окружности">Кр</button>
+  </div>
+  <div class="bb-cell bb-actions">
+    <button class="bb-btn" id="undoBtn" disabled title="Отменить">↶</button>
+    <button class="bb-btn" id="clearBtn" title="Очистить">↺</button>
+  </div>
+</div>
+
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>Как работать</h2>
+    <h3>Построение куба</h3>
+    <ol>
+      <li><b>Стартовое ребро</b> — тапните и потяните вертикально. Это переднее ребро куба.</li>
+      <li><b>Боковое ребро ×4</b> — из верхней и нижней вершины стартового ребра проведите по 2 ребра в стороны.</li>
+      <li><b>Вертикальное ребро ×2</b> — тапните в любом месте и потяните вертикально. После второй вертикали автоматически появятся голубые точки пересечений с боковыми рёбрами.</li>
+      <li><b>Верхнее ребро ×2</b> — соедините голубые точки. Получится верхняя грань куба.</li>
+    </ol>
+    <h3>Режимы (правый верхний угол)</h3>
+    <p><b>Стд</b> — стандартный режим рисования.</p>
+    <p><b>Ред</b> — редактирование: тащите точки. Точки на вертикальных рёбрах двигаются только вверх/вниз, остальные — свободно.</p>
+    <p><b>Пан</b> — перемещение холста пальцем. Не искажает перспективу.</p>
+    <h3>Интерфейс</h3>
+    <p><b>Слева сверху</b> — таблицы со статистикой.</p>
+    <p><b>Справа сверху</b> — блок статистики и блок текущего инструмента.</p>
+    <p><b>Внизу</b>: слева <b>FOV</b> и <b>A</b>; в центре <b>Гор/Куб/Кр</b>; справа <b>↶</b> и <b>↺</b>.</p>
+    <h3>Метрики (в % от стартового ребра)</h3>
+    <ul>
+      <li><b>Горизонт</b> — обе точки схода на одной высоте.</li>
+      <li><b>Рёбра ⊥</b> — горизонтальные рёбра перпендикулярны в 3D. Только в ручном FOV.</li>
+      <li><b>Бок. рёбра</b> — концы боковых рёбер лежат на прямой «вершина → VP».</li>
+      <li><b>Пропорции</b> — куб, а не столб: глубина соответствует высоте.</li>
+      <li><b>Верх. рёбра</b> — верхние рёбра уходят в одну из VP.</li>
+    </ul>
+    <div class="help-legend">
+      <span class="good">✓ &lt; порог/2</span>
+      <span class="ok">⚠ &lt; порог</span>
+      <span class="bad">✗ &gt; порог</span>
+    </div>
+    <h3>Подсказки</h3>
+    <ul>
+      <li>Точки схода — <b style="color:#fff">белые</b> с правильной стороны, иначе <b style="color:#ff5c5c">красные</b>.</li>
+      <li>Если обе VP с одной стороны — программа находит паросочетание рёбер автоматически.</li>
+      <li>Если 3 ребра из 4 с одной стороны — VP не вычисляются.</li>
+      <li>Таблицы скрываются во время рисования.</li>
+      <li>Вертикальные рёбра не прилипают к соседним точкам.</li>
+    </ul>
+    <button class="help-close" id="helpCloseBtn">Понятно</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const canvas = $('canvas'), ctx = canvas.getContext('2d');
+  const clearBtn = $('clearBtn'), undoBtn = $('undoBtn');
+  const circlesBtn = $('circlesBtn'), ghostBtn = $('ghostBtn');
+  const horizonBtn = $('horizonBtn'), autoFovBtn = $('autoFovBtn');
+  const helpBtn = $('helpBtn'), helpOverlay = $('helpOverlay'), helpCloseBtn = $('helpCloseBtn');
+  const fovSlider = $('fovSlider'), fovValue = $('fovValue');
+  const toolIndicator = $('toolIndicator');
+  const cubeRowsEl = $('cubeRows'), cubeCountEl = $('cubeCount');
+  const vpRowsEl = $('vpRows');
+  const vertRowsEl = $('vertRows'), vertCountEl = $('vertCount');
+  const topRowsEl = $('topRows'), topCountEl = $('topCount');
+  const valRowsEl = $('valRows');
+  const panelCube = $('panelCube'), panelVP = $('panelVP');
+  const panelVert = $('panelVert'), panelTop = $('panelTop'), panelVal = $('panelVal');
+  const panelsContainer = $('panels');
+
+  const POINT_HIT_R = 22, POINT_SNAP_TIGHT = 4;
+  const POINT_DRAW_R = 5, AUX_CIRCLE_R = 15;
+  const MIN_SEGMENT = 18, DRAG_THRESHOLD = 8;
+  const MAX_SIDE = 4, MAX_TOP = 2, MAX_VERTICALS = 2;
+  const MAX_HISTORY = 50;
+
+  const state = {
+    points: [], segments: [], tool: 'vertical', draft: null, nextId: 1,
+    fov: 60, autoFov: true,
+    showCircles: false, showGhost: false, showHorizon: false,
+    statsMode: 'val', uiMode: 'standard',
+    view: { x: 0, y: 0 },
+    baseW: 0, baseH: 0,
+  };
+  const uid = p => p + state.nextId++;
+
+  let W = 0, H = 0, DPR = 1;
+  let pointerIsDown = false, gestureMoved = false;
+  let panState = null, editState = null;
+
+  const getPoint = id => state.points.find(p => p.id === id);
+  const getEnds = seg => ({ a: getPoint(seg.aId), b: getPoint(seg.bId) });
+  const getStartSegment  = () => state.segments.find(s => s.role === 'start') || null;
+  const getCubeVerticals = () => state.segments.filter(s => s.role === 'vertical');
+  const getSideSegments  = () => state.segments.filter(s => s.role === 'side');
+  const getTopSegments   = () => state.segments.filter(s => s.role === 'top');
+  const isVerticalTool   = () => state.tool === 'vertical' || state.tool === 'verticalEdge';
+
+  let history = [], historyIndex = -1;
+
+  function saveState() {
+    const snap = JSON.stringify({ points: state.points, segments: state.segments });
+    history = history.slice(0, historyIndex + 1);
+    history.push(snap);
+    historyIndex++;
+    if (history.length > MAX_HISTORY) { history.shift(); historyIndex--; }
+    undoBtn.disabled = historyIndex <= 0;
+  }
+  function loadState(snap) {
+    const data = JSON.parse(snap);
+    state.points = data.points;
+    state.segments = data.segments;
+    state.draft = null;
+    gestureMoved = false;
+    if (state.points.length === 0) { state.baseW = 0; state.baseH = 0; }
+  }
+  function undo() {
+    if (historyIndex <= 0) return;
+    historyIndex--;
+    loadState(history[historyIndex]);
+    syncToolWithState();
+    render();
+    undoBtn.disabled = historyIndex <= 0;
+  }
+
+  function syncToolWithState() {
+    const hasStart = !!getStartSegment();
+    const sideN = getSideSegments().length;
+    const vertN = getCubeVerticals().length;
+    const topN = getTopSegments().length;
+    let t = 'vertical';
+    if (hasStart) {
+      if (sideN < MAX_SIDE) t = 'segment';
+      else if (vertN < MAX_VERTICALS) t = 'verticalEdge';
+      else if (topN < MAX_TOP) t = 'top';
+      else t = 'top';
+    }
+    state.tool = t; state.draft = null; gestureMoved = false;
+  }
+
+  function screenToWorld(sx, sy) {
+    return { x: sx - state.view.x, y: sy - state.view.y };
+  }
+  function hitPoint(x, y, r) {
+    const radius = r ?? POINT_HIT_R;
+    for (let i = state.points.length - 1; i >= 0; i--) {
+      const p = state.points[i];
+      if (Math.hypot(p.x - x, p.y - y) < radius) return p;
+    }
+    return null;
+  }
+  function pointToLineDist(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) return Math.hypot(px - ax, py - ay);
+    return Math.abs((px - ax) * dy - (py - ay) * dx) / len;
+  }
+  function intersectLines(v1, d1, v2, d2) {
+    const denom = d1.x * d2.y - d1.y * d2.x;
+    if (Math.abs(denom) < 1e-9) return null;
+    const t = ((v2.x - v1.x) * d2.y - (v2.y - v1.y) * d2.x) / denom;
+    return { x: v1.x + t * d1.x, y: v1.y + t * d1.y };
+  }
+  function segIntersection(r1, r2) {
+    return intersectLines(
+      r1.startPt, { x: r1.endPt.x - r1.startPt.x, y: r1.endPt.y - r1.startPt.y },
+      r2.startPt, { x: r2.endPt.x - r2.startPt.x, y: r2.endPt.y - r2.startPt.y },
+    );
+  }
+
+  function isPointLockedX(pointId) {
+    for (const s of state.segments) {
+      if (s.role !== 'start' && s.role !== 'vertical') continue;
+      if (s.aId === pointId || s.bId === pointId) return true;
+    }
+    return false;
+  }
+
+  function ensureIntersectionPoints() {
+    let added = false;
+    for (const v of getCubeVerticals()) {
+      const vA = getPoint(v.aId);
+      if (!vA) continue;
+      const Xv = vA.x;
+      for (const s of getSideSegments()) {
+        const { a, b } = getEnds(s);
+        if (!a || !b || Math.abs(b.x - a.x) < 1e-6) continue;
+        const t = (Xv - a.x) / (b.x - a.x);
+        if (t < 0) continue;
+        const y = a.y + t * (b.y - a.y);
+        if (state.points.some(p => Math.hypot(p.x - Xv, p.y - y) < 8)) continue;
+        state.points.push({ id: uid('p'), x: Xv, y: y, kind: 'intersection' });
+        added = true;
+      }
+    }
+    return added;
+  }
+
+  function getCubeContext() {
+    const startSeg = getStartSegment();
+    if (!startSeg) return null;
+    const pA = getPoint(startSeg.aId), pB = getPoint(startSeg.bId);
+    if (!pA || !pB) return null;
+    const topPt = pA.y <= pB.y ? pA : pB;
+    const botPt = pA.y <= pB.y ? pB : pA;
+    const verts = new Map([[topPt.id, 0], [botPt.id, 1]]);
+
+    const sideSegs = [];
+    const bySideVert = { 0: { 0: null, 1: null }, 1: { 0: null, 1: null } };
+    for (const seg of state.segments) {
+      if (seg.role !== 'side') continue;
+      let vertexIdx, startPt, endPt;
+      if (verts.has(seg.aId)) {
+        vertexIdx = verts.get(seg.aId);
+        startPt = getPoint(seg.aId); endPt = getPoint(seg.bId);
+      } else if (verts.has(seg.bId)) {
+        vertexIdx = verts.get(seg.bId);
+        startPt = getPoint(seg.bId); endPt = getPoint(seg.aId);
+      } else continue;
+      if (!startPt || !endPt) continue;
+      const side = endPt.x < startPt.x ? 0 : 1;
+      const rec = { vertex: vertexIdx, side, startPt, endPt, segId: seg.id };
+      sideSegs.push(rec);
+      bySideVert[side][vertexIdx] = rec;
+    }
+    return { topPt, botPt, verts, sideSegs, bySideVert };
+  }
+
+  function computeVanishingPoints() {
+    const c = getCubeContext();
+    if (!c) return { startExists: false, vps: {} };
+
+    let left = 0, right = 0;
+    for (const rec of c.sideSegs) rec.side === 0 ? left++ : right++;
+
+    if (c.sideSegs.length === 4 && (left === 3 || right === 3))
+      return { startExists: true, vps: { 0: null, 1: null }, invalid: '3/1' };
+    if (c.sideSegs.length === 4 && (left === 4 || right === 4))
+      return computeSameSideVPs(c, (state.baseW || W) / 2);
+
+    const vps = {};
+    for (const side of [0, 1]) {
+      const s0 = c.bySideVert[side][0], s1 = c.bySideVert[side][1];
+      vps[side] = (s0 && s1) ? segIntersection(s0, s1) : null;
+    }
+    return { startExists: true, vps };
+  }
+
+  function dirOk(vp, rec) {
+    return (vp.x - rec.startPt.x) * (rec.endPt.x - rec.startPt.x)
+         + (vp.y - rec.startPt.y) * (rec.endPt.y - rec.startPt.y) > 0;
+  }
+
+  function computeSameSideVPs(c, cx) {
+    const topEdges = c.sideSegs.filter(r => r.vertex === 0);
+    const botEdges = c.sideSegs.filter(r => r.vertex === 1);
+    if (topEdges.length !== 2 || botEdges.length !== 2)
+      return { startExists: true, vps: { 0: null, 1: null }, invalid: 'incomplete' };
+
+    const [t1, t2] = topEdges, [b1, b2] = botEdges;
+    const pairings = [
+      { tA: t1, bA: b1, tB: t2, bB: b2 },
+      { tA: t1, bA: b2, tB: t2, bB: b1 },
+    ];
+    let best = null;
+    for (const p of pairings) {
+      const vpA = segIntersection(p.tA, p.bA), vpB = segIntersection(p.tB, p.bB);
+      if (!vpA || !vpB) continue;
+      const dirScore = (dirOk(vpA, p.tA) ? 1 : 0) + (dirOk(vpA, p.bA) ? 1 : 0)
+                     + (dirOk(vpB, p.tB) ? 1 : 0) + (dirOk(vpB, p.bB) ? 1 : 0);
+      const yDiff = Math.abs(vpA.y - vpB.y);
+      const score = dirScore * 1e9 - yDiff;
+      if (!best || score > best.score) best = { vpA, vpB, score };
+    }
+    if (!best) return { startExists: true, vps: { 0: null, 1: null }, invalid: 'parallel' };
+
+    const vps = {};
+    if (best.vpA.x < cx && best.vpB.x >= cx)      { vps[0] = best.vpA; vps[1] = best.vpB; }
+    else if (best.vpB.x < cx && best.vpA.x >= cx) { vps[0] = best.vpB; vps[1] = best.vpA; }
+    else {
+      const d = cx / Math.tan(state.fov * Math.PI / 360);
+      const psiErr = (l, r) => Math.abs(
+        Math.atan((cx - l.x) / d) * 180 / Math.PI +
+        Math.atan((r.x - cx) / d) * 180 / Math.PI - 90
+      );
+      if (psiErr(best.vpA, best.vpB) <= psiErr(best.vpB, best.vpA)) {
+        vps[0] = best.vpA; vps[1] = best.vpB;
+      } else {
+        vps[0] = best.vpB; vps[1] = best.vpA;
+      }
+    }
+    return { startExists: true, vps, smart: true };
+  }
+
+  function computeCubeEntries() {
+    const c = getCubeContext();
+    if (!c) return { startExists: false, entries: [] };
+    const entries = [];
+    for (const rec of c.sideSegs) {
+      const other = rec.vertex === 0 ? c.botPt : c.topPt;
+      const evx = other.x - rec.startPt.x, evy = other.y - rec.startPt.y;
+      const svx = rec.endPt.x - rec.startPt.x, svy = rec.endPt.y - rec.startPt.y;
+      const elen = Math.hypot(evx, evy), slen = Math.hypot(svx, svy);
+      if (elen < 1e-6 || slen < 1e-6) continue;
+      let cosA = (evx * svx + evy * svy) / (elen * slen);
+      cosA = Math.max(-1, Math.min(1, cosA));
+      entries.push({ vertex: rec.vertex, side: rec.side,
+                     angle: Math.round(Math.acos(cosA) * 180 / Math.PI) });
+    }
+    return { startExists: true, entries };
+  }
+
+  function getFovInfo(vpsResult) {
+    if (!state.autoFov) return { fov: state.fov, isAuto: false };
+    const vps = (vpsResult || computeVanishingPoints()).vps;
+    if (!vps || !vps[0] || !vps[1]) return { fov: state.fov, isAuto: false };
+    const baseW = state.baseW || W;
+    const cx = baseW / 2;
+    const dxL = cx - vps[0].x, dxR = vps[1].x - cx;
+    if (dxL <= 1 || dxR <= 1) return { fov: state.fov, isAuto: false };
+    const d = Math.sqrt(dxL * dxR);
+    let fov = 2 * Math.atan((baseW / 2) / d) * 180 / Math.PI;
+    fov = Math.max(20, Math.min(140, Math.round(fov)));
+    return { fov, isAuto: true };
+  }
+
+  function drawIdealCube(cx, cy, d, V_bot, V_top, vps) {
+    if (!vps || (!vps[0] && !vps[1])) return;
+    const psi = vps[0] ? Math.atan((cx - vps[0].x) / d)
+                       : Math.PI / 2 - Math.atan((vps[1].x - cx) / d);
+    const s = Math.abs(V_bot.y - V_top.y);
+    const X_0 = V_bot.x - cx, Y_0 = cy - V_bot.y, Z_0 = d;
+    const c = Math.cos(psi), sn = Math.sin(psi);
+    const P = (x, y, z) => ({ x: cx + d * x / z, y: cy - d * y / z });
+
+    const V = {
+      fbl: P(X_0, Y_0, Z_0), ftl: P(X_0, Y_0 + s, Z_0),
+      fbr: P(X_0 + s*c, Y_0, Z_0 + s*sn), ftr: P(X_0 + s*c, Y_0 + s, Z_0 + s*sn),
+      bbl: P(X_0 - s*sn, Y_0, Z_0 + s*c), btl: P(X_0 - s*sn, Y_0 + s, Z_0 + s*c),
+      bbr: P(X_0 - s*sn + s*c, Y_0, Z_0 + s*c + s*sn),
+      btr: P(X_0 - s*sn + s*c, Y_0 + s, Z_0 + s*c + s*sn),
+    };
+    const E = [
+      ['fbl','ftl'],['ftl','ftr'],['ftr','fbr'],['fbr','fbl'],
+      ['bbl','btl'],['btl','btr'],['btr','bbr'],['bbr','bbl'],
+      ['fbl','bbl'],['ftl','btl'],['ftr','btr'],['fbr','bbr'],
+    ];
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200, 100, 255, 0.85)';
+    ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const [a, b] of E) {
+      ctx.beginPath(); ctx.moveTo(V[a].x, V[a].y); ctx.lineTo(V[b].x, V[b].y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function computeValidation(vpsResult, fovInfo) {
+    const startSeg = getStartSegment();
+    if (!startSeg) return null;
+    const V_a = getPoint(startSeg.aId), V_b = getPoint(startSeg.bId);
+    if (!V_a || !V_b) return null;
+
+    const V_top = V_a.y < V_b.y ? V_a : V_b;
+    const V_bot = V_a.y < V_b.y ? V_b : V_a;
+    const h_f = Math.abs(V_a.y - V_b.y);
+    if (h_f < 5) return { h_f, tooSmall: true };
+
+    const vps = vpsResult.vps;
+    const vpL = vps[0] || null, vpR = vps[1] || null;
+
+    const baseW = state.baseW || W;
+    const d = (baseW / 2) / Math.tan(fovInfo.fov * Math.PI / 360);
+    const cx = baseW / 2;
+    let cy;
+    if (vpL && vpR) cy = (vpL.y + vpR.y) / 2;
+    else if (vpL) cy = vpL.y;
+    else if (vpR) cy = vpR.y;
+    else cy = (state.baseH || H) / 2;
+
+    const eps_horizon = (vpL && vpR) ? Math.abs(vpL.y - vpR.y) / h_f : null;
+
+    let eps_angle = null;
+    if (vpL && vpR && !fovInfo.isAuto) {
+      const psiL = Math.atan((cx - vpL.x) / d) * 180 / Math.PI;
+      const psiR = Math.atan((vpR.x - cx) / d) * 180 / Math.PI;
+      eps_angle = Math.abs(psiL + psiR - 90);
+    }
+
+    let eps_side_vp = null;
+    const c = getCubeContext();
+    if (c && vpL && vpR) {
+      let maxErr = 0;
+      for (const rec of c.sideSegs) {
+        const V = rec.vertex === 0 ? c.topPt : c.botPt;
+        const dL = pointToLineDist(vpL.x, vpL.y, V.x, V.y, rec.endPt.x, rec.endPt.y);
+        const dR = pointToLineDist(vpR.x, vpR.y, V.x, V.y, rec.endPt.x, rec.endPt.y);
+        maxErr = Math.max(maxErr, Math.min(dL, dR) / h_f);
+      }
+      eps_side_vp = maxErr;
+    }
+
+    const verticals = getCubeVerticals();
+    let eps_prop = null;
+    if (verticals.length > 0 && vpL && vpR) {
+      let maxErr = 0, any = false;
+      for (const vert of verticals) {
+        const vA = getPoint(vert.aId);
+        if (!vA) continue;
+        const x_v = vA.x;
+        const VP = x_v < V_bot.x ? vpL : vpR;
+        const t_bot = (x_v - V_bot.x) / (VP.x - V_bot.x);
+        const y_bb = V_bot.y + t_bot * (VP.y - V_bot.y);
+        if (Math.abs(y_bb - cy) < 1e-3) continue;
+        const k_actual = (V_bot.y - cy) / (y_bb - cy);
+        const dist_vp = Math.abs(VP.x - cx);
+        const cosPsi = d / Math.sqrt(d * d + dist_vp * dist_vp);
+        const k_expected = 1 + (h_f / d) * cosPsi;
+        if (Math.abs(k_expected - 1) > 1e-3 && Math.abs(k_actual - 1) > 1e-3) {
+          maxErr = Math.max(maxErr, Math.abs(k_actual - k_expected) / (k_expected - 1));
+          any = true;
+        }
+      }
+      if (any) eps_prop = maxErr;
+    }
+
+    let eps_top = null;
+    const topSegs = getTopSegments();
+    if (topSegs.length > 0 && vpL && vpR) {
+      let maxErr = 0;
+      for (const seg of topSegs) {
+        const { a, b } = getEnds(seg);
+        if (!a || !b) continue;
+        const dL = pointToLineDist(vpL.x, vpL.y, a.x, a.y, b.x, b.y);
+        const dR = pointToLineDist(vpR.x, vpR.y, a.x, a.y, b.x, b.y);
+        maxErr = Math.max(maxErr, Math.min(dL, dR) / h_f);
+      }
+      eps_top = maxErr;
+    }
+
+    return { h_f, d, cx, cy, FOV_DEG: fovInfo.fov, isAutoFov: fovInfo.isAuto,
+             V_bot, V_top, vps,
+             eps_horizon, eps_angle, eps_side_vp, eps_prop, eps_top };
+  }
+
+  function updateCubePanel() {
+    const { startExists, entries } = computeCubeEntries();
+    if (!startExists) { cubeRowsEl.innerHTML = '<div class="hint">—</div>'; cubeCountEl.textContent = ''; return; }
+    cubeCountEl.textContent = `${entries.length}/${MAX_SIDE}`;
+    if (entries.length === 0) { cubeRowsEl.innerHTML = '<div class="hint">—</div>'; return; }
+    cubeRowsEl.innerHTML = entries.map(e => {
+      const v = e.vertex === 0 ? '▲' : '▼';
+      const s = e.side === 0 ? 'L' : 'R';
+      return `<div class="row"><span class="lbl">${v}${s}</span><span class="val">${e.angle}°</span></div>`;
+    }).join('');
+  }
+
+  function updateVPPanel(res) {
+    if (!res.startExists) { vpRowsEl.innerHTML = '<div class="hint">—</div>'; return; }
+    if (res.invalid) {
+      vpRowsEl.innerHTML = `<div class="hint">${res.invalid === '3/1' ? '3 ребра одной стороны' : 'рёбра параллельны'}</div>`;
+      return;
+    }
+    const vps = res.vps;
+    const startSeg = getStartSegment();
+    const edgeX = startSeg ? (getPoint(startSeg.aId)?.x ?? 0) : 0;
+    const fmt = n => Math.round(n);
+    const vp0 = vps[0], vp1 = vps[1];
+    const rows = [];
+    if (vp0) {
+      const ok = vp0.x < edgeX;
+      rows.push(`<div class="row"><span class="lbl">Л</span><span class="val ${ok ? 'vp-ok' : 'vp-bad'}">${fmt(vp0.x)}, ${fmt(vp0.y)}</span></div>`);
+    } else rows.push('<div class="row"><span class="lbl">Л</span><span class="val vp-none">—</span></div>');
+    if (vp1) {
+      const ok = vp1.x > edgeX;
+      rows.push(`<div class="row"><span class="lbl">П</span><span class="val ${ok ? 'vp-ok' : 'vp-bad'}">${fmt(vp1.x)}, ${fmt(vp1.y)}</span></div>`);
+    } else rows.push('<div class="row"><span class="lbl">П</span><span class="val vp-none">—</span></div>');
+    if (vp0 && vp1) {
+      const dy = vp1.y - vp0.y, dx = vp1.x - vp0.x;
+      rows.push(`<div class="row"><span class="lbl">Δh</span><span class="val">${fmt(dy)}</span></div>`);
+      rows.push(`<div class="row"><span class="lbl">Δh/Δx</span><span class="val">${Math.abs(dx) > 1e-6 ? (dy / dx).toFixed(2) : '—'}</span></div>`);
+    }
+    vpRowsEl.innerHTML = rows.join('');
+  }
+
+  function updateVertPanel() {
+    const startSeg = getStartSegment();
+    const verticals = getCubeVerticals();
+    if (!startSeg) { vertRowsEl.innerHTML = '<div class="hint">—</div>'; vertCountEl.textContent = ''; return; }
+    const pA = getPoint(startSeg.aId);
+    if (!pA) { vertRowsEl.innerHTML = '<div class="hint">—</div>'; return; }
+    const edgeX = pA.x;
+    vertCountEl.textContent = `${verticals.length}/${MAX_VERTICALS}`;
+    if (verticals.length === 0) { vertRowsEl.innerHTML = '<div class="hint">—</div>'; return; }
+    vertRowsEl.innerHTML = verticals.map((v, i) => {
+      const p = getPoint(v.aId);
+      if (!p) return '';
+      return `<div class="row"><span class="lbl">${i + 1}</span><span class="val">dx ${Math.round(p.x - edgeX)}</span></div>`;
+    }).join('');
+  }
+
+  function updateTopPanel(vpsResult) {
+    const topSegs = getTopSegments();
+    topCountEl.textContent = `${topSegs.length}/${MAX_TOP}`;
+    if (topSegs.length === 0) { topRowsEl.innerHTML = '<div class="hint">—</div>'; return; }
+    const vpL = vpsResult.vps[0] || null;
+    const vpR = vpsResult.vps[1] || null;
+    topRowsEl.innerHTML = topSegs.map((seg, i) => {
+      const { a, b } = getEnds(seg);
+      if (!a || !b) return '';
+      const dL = vpL ? Math.round(pointToLineDist(vpL.x, vpL.y, a.x, a.y, b.x, b.y)) : '—';
+      const dR = vpR ? Math.round(pointToLineDist(vpR.x, vpR.y, a.x, a.y, b.x, b.y)) : '—';
+      return `<div class="row"><span class="lbl">${i + 1}</span><span class="val">${dL} | ${dR}</span></div>`;
+    }).join('');
+  }
+
+  const pct = x => x === null ? '—' : (x * 100).toFixed(1) + '%';
+  const deg = x => x === null ? '—' : x.toFixed(1) + '°';
+  const rnk = (x, t) => x === null ? 'vp-none' : x <= t / 2 ? 'good' : x <= t ? 'ok' : 'bad';
+  const ico = (x, t) => x === null ? '' : x <= t / 2 ? ' ✓' : x <= t ? ' ⚠' : ' ✗';
+  const row2 = (lbl, val, cls, ic) =>
+    `<div class="row"><span class="lbl">${lbl}</span><span class="val ${cls}">${val}${ic}</span></div>`;
+
+  function updateValPanel(v) {
+    if (!v) { valRowsEl.innerHTML = '<div class="hint">—</div>'; return; }
+    if (v.tooSmall) {
+      valRowsEl.innerHTML = '<div class="hint">Стартовое ребро слишком мало</div>';
+      return;
+    }
+    const rows = [
+      row2('Горизонт', pct(v.eps_horizon), rnk(v.eps_horizon, 0.05), ico(v.eps_horizon, 0.05)),
+    ];
+    if (v.isAutoFov) {
+      rows.push('<div class="row"><span class="lbl">Рёбра ⊥</span><span class="val vp-none">— авто</span></div>');
+    } else {
+      rows.push(row2('Рёбра ⊥', deg(v.eps_angle), rnk(v.eps_angle, 5), ico(v.eps_angle, 5)));
+    }
+    rows.push(
+      row2('Бок. рёбра', pct(v.eps_side_vp), rnk(v.eps_side_vp, 0.05), ico(v.eps_side_vp, 0.05)),
+      row2('Пропорции', pct(v.eps_prop), rnk(v.eps_prop, 0.10), ico(v.eps_prop, 0.10)),
+      row2('Верх. рёбра', pct(v.eps_top), rnk(v.eps_top, 0.05), ico(v.eps_top, 0.05))
+    );
+    valRowsEl.innerHTML = rows.join('');
+  }
+
+  function updateToolIndicator() {
+    if (state.uiMode === 'edit') {
+      toolIndicator.textContent = 'Редактирование';
+      toolIndicator.className = 'tool-indicator edit';
+      return;
+    }
+    if (state.uiMode === 'pan') {
+      toolIndicator.textContent = 'Перемещение';
+      toolIndicator.className = 'tool-indicator pan';
+      return;
+    }
+    toolIndicator.className = 'tool-indicator';
+    const t = state.tool;
+    let text = 'Стартовое ребро';
+    if (t === 'segment') text = `Боковое ребро (${getSideSegments().length}/${MAX_SIDE})`;
+    else if (t === 'verticalEdge') text = `Вертикальное ребро (${getCubeVerticals().length}/${MAX_VERTICALS})`;
+    else if (t === 'top') {
+      text = getTopSegments().length >= MAX_TOP ? 'Готово ✓' : `Верхнее ребро (${getTopSegments().length}/${MAX_TOP})`;
+    }
+    toolIndicator.textContent = text;
+  }
+
+  function updatePanelsVisibility() {
+    if (state.draft) { panelsContainer.style.display = 'none'; return; }
+    panelsContainer.style.display = '';
+    const full = state.statsMode === 'full';
+    const showVal = state.statsMode !== 'none';
+    panelCube.style.display = full ? '' : 'none';
+    panelVP.style.display = full ? '' : 'none';
+    panelVert.style.display = full ? '' : 'none';
+    panelTop.style.display = full ? '' : 'none';
+    panelVal.style.display = showVal ? '' : 'none';
+  }
+
+  function updateBodyModeClass() {
+    document.body.classList.toggle('mode-pan', state.uiMode === 'pan');
+    document.body.classList.toggle('mode-edit', state.uiMode === 'edit');
+    document.body.classList.toggle('panning', !!panState);
+  }
+
+  function resize() {
+    DPR = Math.max(1, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    render();
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 150));
+
+  function setTool(tool) {
+    if (state.draft && state.draft.createdPointId) {
+      state.points = state.points.filter(p => p.id !== state.draft.createdPointId);
+    }
+    state.tool = tool; state.draft = null; gestureMoved = false;
+    render();
+  }
+
+  function cancelDraft() {
+    if (state.draft && state.draft.createdPointId) {
+      state.points = state.points.filter(p => p.id !== state.draft.createdPointId);
+    }
+    state.draft = null; gestureMoved = false; render();
+  }
+
+  function finishDraft(ex, ey) {
+    const d = state.draft;
+    if (!d) return;
+    const startP = getPoint(d.startId);
+    if (!startP) { cancelDraft(); return; }
+    const tool = state.tool;
+
+    if (tool === 'vertical' && getStartSegment()) { cancelDraft(); return; }
+    if (tool === 'verticalEdge' && getCubeVerticals().length >= MAX_VERTICALS) { cancelDraft(); return; }
+    if (tool === 'segment' && getSideSegments().length >= MAX_SIDE) { cancelDraft(); return; }
+    if (tool === 'top' && getTopSegments().length >= MAX_TOP) { cancelDraft(); return; }
+
+    let endX = ex, endY = ey;
+    if (isVerticalTool()) endX = startP.x;
+    if (Math.hypot(endX - startP.x, endY - startP.y) < MIN_SEGMENT) { cancelDraft(); return; }
+
+    const allowSnap = (tool === 'segment' && d.createdPointId != null);
+    let endPoint = null;
+    if (allowSnap) {
+      for (const p of state.points) {
+        if (p.id === startP.id) continue;
+        if (Math.hypot(p.x - endX, p.y - endY) < POINT_HIT_R) { endPoint = p; break; }
+      }
+    }
+    if (!endPoint) {
+      endPoint = { id: uid('p'), x: endX, y: endY, kind: 'free' };
+      state.points.push(endPoint);
+    }
+
+    const dup = state.segments.some(s =>
+      (s.aId === startP.id && s.bId === endPoint.id) ||
+      (s.aId === endPoint.id && s.bId === startP.id)
+    );
+    let createdStart = false;
+    if (!dup) {
+      let role = 'side';
+      if (tool === 'vertical') { role = 'start'; createdStart = true; }
+      else if (tool === 'verticalEdge') role = 'vertical';
+      else if (tool === 'top') role = 'top';
+      state.segments.push({
+        id: uid('s'), aId: startP.id, bId: endPoint.id,
+        vertical: isVerticalTool(), role,
+      });
+    }
+    state.draft = null; gestureMoved = false;
+
+    if (tool === 'verticalEdge' && getCubeVerticals().length >= MAX_VERTICALS) {
+      ensureIntersectionPoints();
+    }
+    saveState();
+
+    if (createdStart) { setTool('segment'); return; }
+    if (tool === 'segment' && getSideSegments().length >= MAX_SIDE) { setTool('verticalEdge'); return; }
+    if (tool === 'verticalEdge' && getCubeVerticals().length >= MAX_VERTICALS) { setTool('top'); return; }
+    render();
+  }
+
+  function pointerDown(sx, sy) {
+    if (state.uiMode === 'pan') {
+      panState = { lastX: sx, lastY: sy };
+      pointerIsDown = true;
+      updateBodyModeClass();
+      return;
+    }
+    if (state.uiMode === 'edit') {
+      const w = screenToWorld(sx, sy);
+      const p = hitPoint(w.x, w.y);
+      if (p) {
+        saveState();
+        editState = { pointId: p.id, lockX: isPointLockedX(p.id) };
+        pointerIsDown = true;
+      }
+      return;
+    }
+
+    // Standard
+    pointerIsDown = true;   // ← ИСПРАВЛЕНИЕ: drag теперь работает
+    const w = screenToWorld(sx, sy);
+    const x = w.x, y = w.y;
+
+    if (state.tool === 'vertical' && getStartSegment()) return;
+    if (state.tool === 'verticalEdge') {
+      if (getSideSegments().length < MAX_SIDE) return;
+      if (getCubeVerticals().length >= MAX_VERTICALS) return;
+    }
+    if (state.tool === 'segment') {
+      if (!getStartSegment()) return;
+      if (getSideSegments().length >= MAX_SIDE) return;
+    }
+    if (state.tool === 'top') {
+      if (getCubeVerticals().length < MAX_VERTICALS) return;
+      if (getTopSegments().length >= MAX_TOP) return;
+    }
+    if (state.draft) { finishDraft(x, y); return; }
+    gestureMoved = false;
+
+    const existing = isVerticalTool() ? hitPoint(x, y, POINT_SNAP_TIGHT) : hitPoint(x, y);
+    let startPoint = existing;
+    if (!startPoint) {
+      if (state.points.length === 0 && state.baseW === 0) {
+        state.baseW = W; state.baseH = H;
+      }
+      startPoint = { id: uid('p'), x, y, kind: 'free' };
+      state.points.push(startPoint);
+    }
+    state.draft = {
+      startId: startPoint.id, cursorX: x, cursorY: y,
+      createdPointId: existing ? null : startPoint.id,
+    };
+    render();
+  }
+
+  function pointerMove(sx, sy) {
+    if (state.uiMode === 'pan' && panState) {
+      state.view.x += sx - panState.lastX;
+      state.view.y += sy - panState.lastY;
+      panState.lastX = sx; panState.lastY = sy;
+      render();
+      return;
+    }
+    if (state.uiMode === 'edit' && editState) {
+      const w = screenToWorld(sx, sy);
+      const p = getPoint(editState.pointId);
+      if (p) {
+        if (!editState.lockX) p.x = w.x;
+        p.y = w.y;
+        render();
+      }
+      return;
+    }
+    if (!state.draft) return;
+    const w = screenToWorld(sx, sy);
+    state.draft.cursorX = w.x; state.draft.cursorY = w.y;
+    if (pointerIsDown) {
+      const startP = getPoint(state.draft.startId);
+      if (startP && Math.hypot(w.x - startP.x, w.y - startP.y) > DRAG_THRESHOLD) gestureMoved = true;
+    }
+    render();
+  }
+
+  function pointerUp(sx, sy) {
+    if (state.uiMode === 'pan') {
+      panState = null; pointerIsDown = false;
+      updateBodyModeClass();
+      return;
+    }
+    if (state.uiMode === 'edit') {
+      if (editState) { editState = null; pointerIsDown = false; }
+      return;
+    }
+    if (!state.draft) { pointerIsDown = false; return; }
+    pointerIsDown = false;
+    if (gestureMoved) {
+      const w = screenToWorld(sx, sy);
+      finishDraft(w.x, w.y);
+    }
+    // Если gestureMoved === false → ничего не делаем, остаётся tap-tap режим.
+    // Если хочешь полностью убрать tap-tap — добавь сюда `else { cancelDraft(); }`.
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch {}
+    pointerDown(e.clientX, e.clientY);
+  });
+  canvas.addEventListener('pointermove', e => { e.preventDefault(); pointerMove(e.clientX, e.clientY); });
+  canvas.addEventListener('pointerup',   e => { e.preventDefault(); pointerUp(e.clientX, e.clientY); });
+  canvas.addEventListener('pointercancel', () => {
+    if (state.uiMode === 'pan') panState = null;
+    else if (state.uiMode === 'edit') editState = null;
+    pointerIsDown = false;
+    cancelDraft();
+    updateBodyModeClass();
+  });
+
+  undoBtn.addEventListener('click', undo);
+  circlesBtn.addEventListener('click', () => { state.showCircles = !state.showCircles; render(); });
+  ghostBtn.addEventListener('click',   () => { state.showGhost = !state.showGhost; render(); });
+  horizonBtn.addEventListener('click', () => { state.showHorizon = !state.showHorizon; render(); });
+  autoFovBtn.addEventListener('click', () => { state.autoFov = !state.autoFov; render(); });
+
+  document.querySelectorAll('.tb-seg-btn[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => { state.statsMode = btn.dataset.mode; render(); });
+  });
+  document.querySelectorAll('.tb-seg-btn[data-ui-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (state.draft && state.draft.createdPointId) {
+        state.points = state.points.filter(p => p.id !== state.draft.createdPointId);
+      }
+      state.draft = null; panState = null; editState = null;
+      state.uiMode = btn.dataset.uiMode;
+      updateBodyModeClass();
+      render();
+    });
+  });
+
+  clearBtn.addEventListener('click', () => {
+    state.points = []; state.segments = [];
+    state.draft = null; gestureMoved = false;
+    state.baseW = 0; state.baseH = 0;
+    state.view = { x: 0, y: 0 };
+    state.tool = 'vertical';
+    saveState();
+    render();
+  });
+
+  fovSlider.addEventListener('input', e => {
+    if (state.autoFov) return;
+    state.fov = Number(e.target.value);
+    render();
+  });
+
+  helpBtn.addEventListener('click', () => helpOverlay.classList.add('show'));
+  helpCloseBtn.addEventListener('click', () => helpOverlay.classList.remove('show'));
+  helpOverlay.addEventListener('click', e => {
+    if (e.target === helpOverlay) helpOverlay.classList.remove('show');
+  });
+
+  function render() {
+    ctx.fillStyle = '#1a1a1f';
+    ctx.fillRect(0, 0, W, H);
+
+    const vpsResult = computeVanishingPoints();
+    const fovInfo = getFovInfo(vpsResult);
+    const v = computeValidation(vpsResult, fovInfo);
+
+    ctx.save();
+    ctx.translate(state.view.x, state.view.y);
+
+    if (state.showGhost && v && !v.tooSmall) {
+      drawIdealCube(v.cx, v.cy, v.d, v.V_bot, v.V_top, vpsResult.vps);
+    }
+
+    const big = (Math.max(W, H) + Math.abs(state.view.x) + Math.abs(state.view.y)) * 4;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(100, 140, 200, 0.28)';
+    ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
+    for (const seg of state.segments) {
+      const { a, b } = getEnds(seg);
+      if (!a || !b) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-6) continue;
+      const ux = dx / len, uy = dy / len;
+      ctx.beginPath();
+      ctx.moveTo(a.x - ux * big, a.y - uy * big);
+      ctx.lineTo(a.x + ux * big, a.y + uy * big);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    if (state.showHorizon && v && !v.tooSmall) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 200, 100, 0.55)';
+      ctx.lineWidth = 1.5; ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(-big, v.cy); ctx.lineTo(big, v.cy);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.lineCap = 'round';
+    for (const seg of state.segments) {
+      const { a, b } = getEnds(seg);
+      if (!a || !b) continue;
+      if (seg.role === 'start')       { ctx.strokeStyle = '#8affb8'; ctx.lineWidth = 3; }
+      else if (seg.role === 'vertical') { ctx.strokeStyle = '#ffb87a'; ctx.lineWidth = 2.5; }
+      else if (seg.role === 'top')      { ctx.strokeStyle = '#a0e8ff'; ctx.lineWidth = 2; }
+      else                              { ctx.strokeStyle = '#d8d8ff'; ctx.lineWidth = 2; }
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+
+    if (state.draft) {
+      const start = getPoint(state.draft.startId);
+      if (start) {
+        let ex = state.draft.cursorX, ey = state.draft.cursorY;
+        if (isVerticalTool()) ex = start.x;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(120, 180, 255, 0.85)';
+        ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+        ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.restore();
+        ctx.save();
+        ctx.strokeStyle = '#7ab8ff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(start.x, start.y, AUX_CIRCLE_R + 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = 'rgba(120, 180, 255, 0.65)';
+        ctx.beginPath(); ctx.arc(ex, ey, POINT_DRAW_R, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    if (state.showCircles) {
+      ctx.strokeStyle = 'rgba(120, 180, 255, 0.45)'; ctx.lineWidth = 1.5;
+      for (const p of state.points) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, AUX_CIRCLE_R, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    for (const p of state.points) {
+      let fill;
+      if (p.kind === 'intersection') fill = '#a0e8ff';
+      else if (p.kind === 'onLine') fill = '#ffb85c';
+      else fill = '#7ab8ff';
+      if (editState && editState.pointId === p.id) fill = '#ffd888';
+      ctx.fillStyle = fill;
+      ctx.beginPath(); ctx.arc(p.x, p.y, POINT_DRAW_R, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1; ctx.stroke();
+      if (editState && editState.pointId === p.id && editState.lockX) {
+        ctx.strokeStyle = 'rgba(255, 216, 136, 0.8)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, POINT_DRAW_R + 5, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+
+    circlesBtn.classList.toggle('active', state.showCircles);
+    ghostBtn.classList.toggle('active', state.showGhost);
+    horizonBtn.classList.toggle('active', state.showHorizon);
+    autoFovBtn.classList.toggle('active', state.autoFov);
+    document.querySelectorAll('.tb-seg-btn[data-mode]').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === state.statsMode));
+    document.querySelectorAll('.tb-seg-btn[data-ui-mode]').forEach(b =>
+      b.classList.toggle('active', b.dataset.uiMode === state.uiMode));
+
+    fovSlider.disabled = state.autoFov;
+    if (fovInfo.isAuto) {
+      fovValue.textContent = fovInfo.fov + '°';
+      fovValue.style.color = '#8affb8';
+      fovSlider.value = fovInfo.fov;
+    } else if (state.autoFov) {
+      fovValue.textContent = fovInfo.fov + '°?';
+      fovValue.style.color = '#ffd888';
+      fovSlider.value = fovInfo.fov;
+    } else {
+      fovValue.textContent = fovInfo.fov + '°';
+      fovValue.style.color = '#ccc';
+      fovSlider.value = fovInfo.fov;
+    }
+
+    updateToolIndicator();
+    updatePanelsVisibility();
+    if (state.statsMode === 'full' && !state.draft) {
+      updateCubePanel();
+      updateVPPanel(vpsResult);
+      updateVertPanel();
+      updateTopPanel(vpsResult);
+    }
+    if (state.statsMode !== 'none' && !state.draft) {
+      updateValPanel(v);
+    }
+  }
+
+  updateBodyModeClass();
+  saveState();
+  resize();
+})();
+</script>
+</body>
+</html>
