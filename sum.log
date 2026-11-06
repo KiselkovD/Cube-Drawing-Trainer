@@ -1,0 +1,4351 @@
+=== FILE: styles.css ===
+* { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1f; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       color: #eee; touch-action: none; }
+#canvas { display: block; position: fixed; inset: 0; touch-action: none; }
+body.mode-create #canvas, body.mode-link #canvas, body.mode-segment #canvas, body.mode-erase #canvas { cursor: crosshair; }
+body.mode-move #canvas { cursor: move; }
+
+#panels { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px;
+  width: 210px; max-height: calc(100vh - 200px); overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; gap: 6px; z-index: 9; pointer-events: none; }
+.panel { background: rgba(15,15,20,0.78); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(70,70,90,0.55); padding: 5px 6px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 10.5px; color: #d0d0d0;
+  line-height: 1.5; pointer-events: auto; }
+.panel-title { font-size: 9px; color: #999; text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 3px; display: flex; justify-content: space-between; gap: 6px; font-weight: 600; }
+.sec-h { font-size: 9px; color: #8affb8; text-transform: uppercase; letter-spacing: 1px;
+  margin-top: 5px; margin-bottom: 2px; font-weight: 600; }
+.sec-h.link { color: #ff6ad5; } .sec-h.sec { color: #c0a0ff; } .sec-h.ortho { color: #ffb800; }
+.hint { color: #888; font-style: italic; font-size: 10px; }
+.row { padding: 3px 0; font-variant-numeric: tabular-nums; white-space: nowrap;
+  display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.row label { color: #999; flex: 0 0 16px; font-size: 9.5px; }
+.row .val { flex: 0 0 40px; text-align: right; color: #ccc; font-variant-numeric: tabular-nums; font-size: 10px; }
+#panelOrtho { font-size: 10px; }
+#panelOrtho .row { padding: 1px 0; }
+#panelOrtho .row label { flex: 0 0 40px; font-size: 9.5px; }
+#panelOrtho .row .val { flex: 0 0 62px; font-size: 10px; }
+#panelOrtho .row .val.good { color: #8affb8; } #panelOrtho .row .val.ok { color: #ffd888; }
+#panelOrtho .row .val.bad { color: #ff5c5c; } #panelOrtho .row .val.none { color: #888; }
+.row input[type=range] { -webkit-appearance: none; appearance: none; flex: 1 1 auto;
+  min-width: 0; height: 20px; background: transparent; outline: none; margin: 0 4px;
+  cursor: pointer; touch-action: auto; }
+.row input[type=range]::-webkit-slider-runnable-track {
+  height: 6px; background: #3a3a45; border-radius: 3px; }
+.row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%; background: #4a7aff; cursor: pointer;
+  border: 2px solid #6a9aff; margin-top: -7px; }
+.row input[type=range]::-moz-range-track { height: 6px; background: #3a3a45; border-radius: 3px; }
+.row input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%;
+  background: #4a7aff; cursor: pointer; border: 2px solid #6a9aff; }
+.row input[data-key^="link."]::-webkit-slider-thumb { background: #ff6ad5; border-color: #ff9ae0; }
+.row input[data-key^="link."]::-moz-range-thumb { background: #ff6ad5; border-color: #ff9ae0; }
+.step-btn { flex: 0 0 22px; height: 22px; background: #2a2a35; color: #ccc; border: 1px solid #444;
+  font-size: 14px; font-weight: 700; cursor: pointer; padding: 0; line-height: 1;
+  display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+.step-btn:active { background: #3a4a6a; color: #fff; }
+.del-btn { width: 100%; margin-top: 5px; padding: 6px; background: rgba(255,90,90,0.2);
+  border: 1px solid rgba(255,90,90,0.5); color: #ff9090; font-size: 10px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; text-transform: uppercase; letter-spacing: 0.4px; }
+.del-btn:active { background: rgba(255,90,90,0.35); }
+.del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.reset-btn { width: 100%; margin-top: 4px; padding: 4px; background: rgba(74,122,255,0.18);
+  border: 1px solid rgba(74,122,255,0.5); color: #a0b8ff; font-size: 9px; font-weight: 600;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; text-transform: uppercase; letter-spacing: 0.4px; }
+.reset-btn.link { background: rgba(255,106,213,0.18); border-color: rgba(255,106,213,0.5); color: #ffa0e8; }
+.reset-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.snap-row { display: flex; align-items: center; gap: 4px; padding: 3px 0; }
+.snap-lbl { flex: 0 0 38px; font-size: 9px; color: #999; text-transform: uppercase; letter-spacing: 0.4px; }
+.snap-seg { flex: 1; display: flex; height: 22px; }
+.snap-btn { flex: 1; padding: 0 2px; background: transparent; color: #999;
+  border: 1px solid #444; border-right: none; font-size: 9px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; font-family: inherit;
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snap-btn:last-child { border-right: 1px solid #444; }
+.snap-btn.active { background: #8affb8; color: #1a1a1f; border-color: #aaffcc; }
+.snap-btn[data-val="lines"].active { background: #ff8a4a; color: #1a1a1f; border-color: #ffaa6a; }
+.snap-btn[data-val="none"].active { background: #666; color: #fff; border-color: #888; }
+.snap-btn[data-val="dashed"].active { background: #c0a0ff; color: #1a1a1f; border-color: #d4baff; }
+
+#topRightControls { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: 8px;
+  width: 128px; display: flex; flex-direction: column; gap: 6px; align-items: stretch; z-index: 10; }
+.top-box { background: rgba(20,20,25,0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #3a3a45; display: flex; align-items: center; padding: 2px; width: 100%; }
+#statsBox { gap: 4px; } #modeBox { padding: 2px; }
+#toolBox { flex-direction: column; align-items: stretch; padding: 0; overflow: hidden; }
+.tool-indicator { padding: 5px 6px; font-size: 9px; color: #8affb8; text-align: center;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+  border-bottom: 1px solid #3a3a45; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; width: 100%; }
+.tool-indicator.move { color: #ffd888; } .tool-indicator.link { color: #ff6ad5; }
+.tool-indicator.segment { color: #8affb8; } .tool-indicator.erase { color: #ff9090; }
+.tool-bottom { display: flex; align-items: center; padding: 2px 0; width: 100%; }
+.tb-seg { display: flex; flex: 1; height: 24px; margin: 0 2px; min-width: 0; }
+.tb-seg-btn { flex: 1 1 0; padding: 0 1px; background: transparent; color: #999;
+  border: 1px solid #444; border-right: none; font-size: 9px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; min-width: 0; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.tb-seg-btn:last-child { border-right: 1px solid #444; }
+.tb-seg-btn.active { background: #4a7aff; color: #fff; border-color: #6a9aff; }
+.tb-seg-btn[data-tool="move"].active { background: #ff8a4a; border-color: #ffaa6a; }
+.tb-seg-btn[data-tool="link"].active { background: #ff6ad5; border-color: #ff9ae0; }
+.tb-seg-btn[data-tool="segment"].active { background: #8affb8; color: #1a1a1f; border-color: #aaffcc; }
+.tb-seg-btn[data-tool="erase"].active { background: #ff9090; color: #1a1a1f; border-color: #ffb0b0; }
+
+.mode-col { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.mode-row { display: flex; gap: 2px; width: 100%; }
+.mode-row .mode-btn {
+  flex: 1 1 0; height: 22px; padding: 0 2px;
+  background: transparent; color: #999;
+  border: 1px solid #444;
+  font-size: 9px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; text-align: center;
+  font-family: inherit;
+}
+.mode-row .mode-btn.active[data-mode="theory"] { background: #4a7aff; color: #fff; border-color: #6a9aff; }
+.mode-row .mode-btn.active[data-mode="practice"] { background: #8affb8; color: #1a1a1f; border-color: #aaffcc; }
+.mode-row .mode-btn.active[data-mode="exam"] { background: #ff8a4a; color: #1a1a1f; border-color: #ffaa6a; }
+.vis-btn {
+  flex: 0 0 22px; height: 22px; padding: 0;
+  background: transparent; color: #555;
+  border: 1px solid #444; font-size: 12px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+}
+.vis-btn.active { color: #fff; }
+.vis-btn.active[data-vis="theory"] { background: #4a7aff; border-color: #6a9aff; }
+.vis-btn.active[data-vis="practice"] { background: #8affb8; color: #1a1a1f; border-color: #aaffcc; }
+.vis-btn.active[data-vis="exam"] { background: #ff8a4a; color: #1a1a1f; border-color: #ffaa6a; }
+.help-circle { width: 22px; height: 22px; border-radius: 50%; background: #383844;
+  border: 1px solid #555; color: #fff; font-weight: 700; font-size: 11px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; display: flex; align-items: center;
+  justify-content: center; flex: 0 0 auto; }
+
+#bottomBar { position: fixed; bottom: 0; left: 0; right: 0;
+  padding: 5px 6px; padding-bottom: calc(5px + env(safe-area-inset-bottom));
+  background: rgba(20,20,25,0.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid #2a2a35; z-index: 10; display: flex; flex-direction: column; gap: 5px; }
+.bb-row { display: flex; gap: 5px; align-items: stretch; }
+.bb-cell { display: flex; align-items: center; gap: 4px; height: 34px;
+  background: rgba(35,35,45,0.75); border: 1px solid #3a3a45; padding: 0 6px;
+  flex: 1 1 0; min-width: 0; }
+.bb-cell .lbl { font-size: 9px; color: #999; text-transform: uppercase; letter-spacing: 0.3px; flex: 0 0 auto; }
+.bb-cell .val { font-size: 11px; color: #ccc; font-variant-numeric: tabular-nums;
+  flex: 0 0 auto; min-width: 40px; text-align: right; }
+.bb-cell .val.dist-val { color: #8affb8; font-weight: 600; }
+#fovSlider, #horizonSlider { -webkit-appearance: none; appearance: none; flex: 1 1 auto;
+  min-width: 40px; height: 6px; background: #3a3a45; outline: none; cursor: pointer; margin: 0 3px; }
+#fovSlider::-webkit-slider-thumb, #horizonSlider::-webkit-slider-thumb { -webkit-appearance: none;
+  appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #4a7aff;
+  cursor: pointer; border: 2px solid #6a9aff; }
+#fovSlider::-moz-range-thumb, #horizonSlider::-moz-range-thumb { width: 18px; height: 18px;
+  border-radius: 50%; background: #4a7aff; cursor: pointer; border: 2px solid #6a9aff; }
+.size-input { width: 48px; height: 24px; padding: 0 3px; background: #23232d; border: 1px solid #444;
+  color: #fff; font-size: 11px; text-align: right; font-family: inherit;
+  -webkit-appearance: none; appearance: none; outline: none; flex: 0 0 auto; }
+.size-input:focus { border-color: #6a9aff; }
+.bb-btn { flex: 1 1 0; height: 26px; padding: 0 2px; background: transparent; color: #ccc;
+  border: 1px solid #444; font-size: 9px; font-weight: 500; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; white-space: nowrap; display: flex;
+  align-items: center; justify-content: center; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; }
+.bb-btn + .bb-btn { margin-left: 2px; }
+.bb-btn:active:not(:disabled) { background: rgba(80,80,100,0.6); }
+.bb-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.bb-btn.active { background: #4a7aff; color: #fff; border-color: #6a9aff; }
+.bb-btn.ortho.active { background: #ffb800; border-color: #ffcc44; color: #222; }
+.bb-btn.reco.active { background: #ff8a4a; border-color: #ffaa6a; color: #222; }
+.bb-btn.raw.active { background: #ff5c5c; border-color: #ff7c7c; color: #fff; }
+.bb-btn.simp.active { background: #ffd888; border-color: #ffe8a8; color: #222; }
+
+#helpOverlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none;
+  align-items: center; justify-content: center; padding: 16px; }
+#helpOverlay.show { display: flex; }
+.help-box { background: #1e1e28; border: 1px solid #3a3a45; max-width: 540px;
+  max-height: 90vh; width: 100%; overflow-y: auto; padding: 18px 20px;
+  color: #ddd; font-size: 12px; line-height: 1.55; }
+.help-box h2 { font-size: 16px; color: #fff; margin-bottom: 12px; font-weight: 600; }
+.help-box h3 { font-size: 11px; color: #8affb8; margin: 14px 0 5px;
+  text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+.help-box ul { padding-left: 18px; margin-bottom: 7px; }
+.help-box li { margin-bottom: 3px; } .help-box b { color: #fff; }
+.help-close { margin-top: 16px; width: 100%; padding: 10px; background: #4a7aff;
+  color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+
+=== FILE: graph.js ===
+import { THRESHOLDS, graphColors } from './config.js'
+import {
+  lineAngleDeg,
+  lineIntersect, projectOnLine,
+} from './core/math.js'
+
+export function componentize(segments) {
+  const n = segments.length;
+  const parent = [...Array(n).keys()];
+  const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  const uni = (i, j) => { parent[find(i)] = find(j); };
+  const close = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < THRESHOLDS.graphSnapPx;
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const s1 = segments[i], s2 = segments[j];
+      if (close(s1.a, s2.a) || close(s1.a, s2.b) || close(s1.b, s2.a) || close(s1.b, s2.b)) {
+        uni(i, j); continue;
+      }
+      const it = lineIntersect(s1.a, s1.b, s2.a, s2.b);
+      if (it && it.t > 0.01 && it.t < 0.99 && it.u > 0.01 && it.u < 0.99) uni(i, j);
+    }
+  }
+  const map = new Map();
+  for (let i = 0; i < n; i++) {
+    const r = find(i);
+    if (!map.has(r)) map.set(r, []);
+    map.get(r).push(segments[i]);
+  }
+  return [...map.values()];
+}
+
+export function buildGraph(segments) {
+  const EPS_SNAP = THRESHOLDS.graphSnapPx;
+  const EPS_LINE = THRESHOLDS.graphLinePx;
+  const EPS_PARAM = THRESHOLDS.graphParamEps;
+  const EPS_MIN = THRESHOLDS.graphMinEdgePx;
+  const EPS_PAR = THRESHOLDS.graphParallelEps;
+
+  const raw = [];
+  for (const s of segments) {
+    raw.push({ x: s.a.x, y: s.a.y });
+    raw.push({ x: s.b.x, y: s.b.y });
+  }
+  for (let i = 0; i < segments.length; i++) {
+    const s1 = segments[i];
+    const d1x = s1.b.x - s1.a.x, d1y = s1.b.y - s1.a.y;
+    const len1 = Math.hypot(d1x, d1y);
+    if (len1 < 1e-6) continue;
+    for (let j = i + 1; j < segments.length; j++) {
+      const s2 = segments[j];
+      const d2x = s2.b.x - s2.a.x, d2y = s2.b.y - s2.a.y;
+      const len2 = Math.hypot(d2x, d2y);
+      if (len2 < 1e-6) continue;
+      const den = d1x * d2y - d1y * d2x;
+      if (Math.abs(den) / (len1 * len2) < EPS_PAR) continue;
+      const t = ((s2.a.x - s1.a.x) * d2y - (s2.a.y - s1.a.y) * d2x) / den;
+      const u = ((s2.a.x - s1.a.x) * d1y - (s2.a.y - s1.a.y) * d1x) / den;
+      if (t < -EPS_PARAM || t > 1 + EPS_PARAM) continue;
+      if (u < -EPS_PARAM || u > 1 + EPS_PARAM) continue;
+      raw.push({ x: s1.a.x + t * d1x, y: s1.a.y + t * d1y });
+    }
+  }
+
+  const parent = raw.map((_, i) => i);
+  const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  const uni = (i, j) => { parent[find(i)] = find(j); };
+  const cell = EPS_SNAP;
+  const grid = new Map();
+  for (let i = 0; i < raw.length; i++) {
+    const gx = Math.floor(raw[i].x / cell), gy = Math.floor(raw[i].y / cell);
+    const k = gx + ',' + gy;
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(i);
+  }
+  for (let i = 0; i < raw.length; i++) {
+    const gx = Math.floor(raw[i].x / cell), gy = Math.floor(raw[i].y / cell);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const b = grid.get((gx + dx) + ',' + (gy + dy));
+      if (!b) continue;
+      for (const j of b) {
+        if (j <= i) continue;
+        if (Math.hypot(raw[i].x - raw[j].x, raw[i].y - raw[j].y) < EPS_SNAP) uni(i, j);
+      }
+    }
+  }
+
+  const groups = new Map();
+  for (let i = 0; i < raw.length; i++) {
+    const r = find(i);
+    if (!groups.has(r)) groups.set(r, { sx: 0, sy: 0, n: 0 });
+    const g = groups.get(r);
+    g.sx += raw[i].x; g.sy += raw[i].y; g.n++;
+  }
+  const vertices = [];
+  for (const [, g] of groups) vertices.push({ id: vertices.length, x: g.sx / g.n, y: g.sy / g.n });
+
+  const segSplits = segments.map(() => []);
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    const dx = s.b.x - s.a.x, dy = s.b.y - s.a.y;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 1e-6) continue;
+    for (const v of vertices) {
+      const t = ((v.x - s.a.x) * dx + (v.y - s.a.y) * dy) / len2;
+      if (t < -EPS_PARAM || t > 1 + EPS_PARAM) continue;
+      const proj = projectOnLine(v, s.a, s.b);
+      if (Math.hypot(v.x - proj.x, v.y - proj.y) > EPS_LINE) continue;
+      segSplits[i].push({ t, vertexId: v.id });
+    }
+    segSplits[i].sort((p, q) => p.t - q.t);
+  }
+
+  const edges = [], seen = new Set();
+  for (let i = 0; i < segments.length; i++) {
+    for (let k = 0; k < segSplits[i].length - 1; k++) {
+      const a = segSplits[i][k].vertexId, b = segSplits[i][k + 1].vertexId;
+      if (a === b) continue;
+      const va = vertices[a], vb = vertices[b];
+      if (Math.hypot(va.x - vb.x, va.y - vb.y) < EPS_MIN) continue;
+      const key = Math.min(a, b) + '-' + Math.max(a, b);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edges.push({ aId: a, bId: b, segIdx: i });
+    }
+  }
+
+  return { vertices, edges, segSplits };
+}
+
+export function normalizeIds(g) {
+  const idMap = new Map();
+  const vertices = g.vertices.map((v, i) => { idMap.set(v.id, i); return { x: v.x, y: v.y, id: i }; });
+  const edges = g.edges.map((e) => ({ aId: idMap.get(e.aId), bId: idMap.get(e.bId), segIdx: e.segIdx }));
+  return { vertices, edges };
+}
+
+export function pruneDegree1(g) {
+  let edges = g.edges.slice();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const deg = new Map();
+    for (const e of edges) {
+      deg.set(e.aId, (deg.get(e.aId) || 0) + 1);
+      deg.set(e.bId, (deg.get(e.bId) || 0) + 1);
+    }
+    const next = [];
+    for (const e of edges) {
+      if (deg.get(e.aId) >= 2 && deg.get(e.bId) >= 2) next.push(e);
+      else changed = true;
+    }
+    edges = next;
+  }
+  const active = new Set();
+  for (const e of edges) { active.add(e.aId); active.add(e.bId); }
+  const vertices = g.vertices.filter((v) => active.has(v.id));
+  return normalizeIds({ vertices, edges });
+}
+
+export function mergeSmallTriangles(g, threshold = THRESHOLDS.mergeTrianglePx) {
+  const adj = new Map();
+  for (const v of g.vertices) adj.set(v.id, new Set());
+  for (const e of g.edges) { adj.get(e.aId).add(e.bId); adj.get(e.bId).add(e.aId); }
+  const vMap = new Map(g.vertices.map((v) => [v.id, v]));
+  const seen = new Set(), candidates = [];
+  for (const [a, nbrs] of adj) {
+    const arr = [...nbrs];
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        if (!nbrs.has(arr[j])) continue;
+        const b = arr[i], c = arr[j];
+        const key = [a, b, c].sort((x, y) => x - y).join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const va = vMap.get(a), vb = vMap.get(b), vc = vMap.get(c);
+        if (!va || !vb || !vc) continue;
+        const mx = Math.max(
+          Math.hypot(vb.x - va.x, vb.y - va.y),
+          Math.hypot(vc.x - vb.x, vc.y - vb.y),
+          Math.hypot(va.x - vc.x, va.y - vc.y));
+        if (mx < threshold) candidates.push([a, b, c]);
+      }
+    }
+  }
+  if (!candidates.length) return normalizeIds(g);
+
+  const used = new Set(), toMerge = [];
+  for (const tri of candidates) {
+    if (tri.some((id) => used.has(id))) continue;
+    toMerge.push(tri);
+    tri.forEach((id) => used.add(id));
+  }
+  if (!toMerge.length) return normalizeIds(g);
+
+  const idMap = new Map();
+  const newVertices = g.vertices.filter((v) => !used.has(v.id)).map((v) => ({ ...v }));
+  let nextId = Math.max(...newVertices.map((v) => v.id), -1) + 1;
+  for (const tri of toMerge) {
+    const cx = tri.reduce((s, id) => s + vMap.get(id).x, 0) / 3;
+    const cy = tri.reduce((s, id) => s + vMap.get(id).y, 0) / 3;
+    const cid = nextId++;
+    newVertices.push({ id: cid, x: cx, y: cy });
+    for (const id of tri) idMap.set(id, cid);
+  }
+  const newEdges = [], edgeSeen = new Set();
+  for (const e of g.edges) {
+    const a = idMap.get(e.aId) ?? e.aId, b = idMap.get(e.bId) ?? e.bId;
+    if (a === b) continue;
+    const key = Math.min(a, b) + '-' + Math.max(a, b);
+    if (edgeSeen.has(key)) continue;
+    edgeSeen.add(key);
+    newEdges.push({ aId: a, bId: b, segIdx: e.segIdx });
+  }
+  return normalizeIds({ vertices: newVertices, edges: newEdges });
+}
+
+export function simplifyGraph(g) {
+  let cur = normalizeIds(g);
+  for (let it = 0; it < THRESHOLDS.mergeMaxIter; it++) {
+    const bV = cur.vertices.length, bE = cur.edges.length;
+    cur = pruneDegree1(cur);
+    cur = mergeSmallTriangles(cur);
+    if (cur.vertices.length === bV && cur.edges.length === bE) break;
+  }
+  return cur;
+}
+
+export function findStructure(g) {
+  const deg = new Map(), adj = new Map();
+  for (const e of g.edges) {
+    deg.set(e.aId, (deg.get(e.aId) || 0) + 1);
+    deg.set(e.bId, (deg.get(e.bId) || 0) + 1);
+    if (!adj.has(e.aId)) adj.set(e.aId, new Set());
+    if (!adj.has(e.bId)) adj.set(e.bId, new Set());
+    adj.get(e.aId).add(e.bId);
+    adj.get(e.bId).add(e.aId);
+  }
+  const V = deg.size, E = g.edges.length;
+  const ds = [...deg.values()].sort((a, b) => a - b).join(',');
+
+  if (V === 4 && E === 4 && ds === '2,2,2,2') return { type: 1 };
+
+  if (V === 6 && E === 7 && ds === '2,2,2,2,3,3') {
+    const deg3 = [];
+    for (const [v, d] of deg) if (d === 3) deg3.push(v);
+    if (deg3.length !== 2) return null;
+    const [A, B] = deg3;
+    const Ay = [...adj.get(A)].filter((x) => x !== B);
+    const Bx = [...adj.get(B)].filter((x) => x !== A);
+    if (Ay.length !== 2 || Bx.length !== 2) return null;
+    const cycles = [];
+    for (const y of Ay) {
+      const x = Bx.find((xx) => adj.get(y).has(xx));
+      if (x === undefined) return null;
+      cycles.push({ Y: y, X: x });
+    }
+    if (cycles.length !== 2) return null;
+    return { type: 2, A, B, cycles };
+  }
+
+  if (V === 7 && E === 9 && ds === '2,2,2,3,3,3,3') {
+    let C = null;
+    for (const [v, d] of deg) {
+      if (d !== 3) continue;
+      const nbrs = [...adj.get(v)];
+      if (nbrs.every((n) => deg.get(n) === 3)) { C = v; break; }
+    }
+    if (C === null) return null;
+    const N = [...adj.get(C)];
+    if (N.length !== 3) return null;
+    const X = {};
+    for (const [i, j, key] of [[0, 1, 'X12'], [0, 2, 'X13'], [1, 2, 'X23']]) {
+      const common = [...adj.get(N[i])].filter((n) => n !== C && adj.get(N[j]).has(n) && deg.get(n) === 2);
+      if (common.length !== 1) return null;
+      X[key] = common[0];
+    }
+    return { type: 3, C, N, X12: X.X12, X13: X.X13, X23: X.X23 };
+  }
+  return null;
+}
+
+export function makeGroups(structure) {
+  if (structure.type === 2) {
+    const { A, B, cycles } = structure;
+    const [c1, c2] = cycles;
+    return [
+      { edges: [[A, B], [c1.X, c1.Y], [c2.X, c2.Y]] },
+      { edges: [[A, c1.Y], [B, c1.X]] },
+      { edges: [[A, c2.Y], [B, c2.X]] },
+    ];
+  }
+  if (structure.type === 3) {
+    const { C, N, X12, X13, X23 } = structure;
+    return [
+      { edges: [[C, N[0]], [X12, N[1]], [X13, N[2]]] },
+      { edges: [[C, N[1]], [X12, N[0]], [X23, N[2]]] },
+      { edges: [[C, N[2]], [X13, N[0]], [X23, N[1]]] },
+    ];
+  }
+  return [];
+}
+
+export function classifyPerspective(groups, V) {
+  const angles = groups.map((g) => {
+    let m = 0;
+    for (let i = 0; i < g.edges.length; i++)
+      for (let j = i + 1; j < g.edges.length; j++) {
+        const [a1, b1] = g.edges[i], [a2, b2] = g.edges[j];
+        m = Math.max(m, lineAngleDeg(
+          { x: V[b1].x - V[a1].x, y: V[b1].y - V[a1].y },
+          { x: V[b2].x - V[a2].x, y: V[b2].y - V[a2].y }));
+      }
+    return m;
+  });
+  const minAngle = Math.min(...angles);
+  const parallelGroups = angles.map((a) => a === minAngle && a < THRESHOLDS.parallelAngleDeg);
+  return {
+    perspective: parallelGroups.some(Boolean) ? '2-point' : '3-point',
+    parallelGroups,
+    angles,
+  };
+}
+
+function averageDir2D(edges, V) {
+  let sx = 0, sy = 0, refx = null, refy = null;
+  for (const [a, b] of edges) {
+    let dx = V[b].x - V[a].x, dy = V[b].y - V[a].y;
+    const n = Math.hypot(dx, dy);
+    if (n < 1e-9) continue;
+    dx /= n; dy /= n;
+    if (refx === null) { refx = dx; refy = dy; sx = dx; sy = dy; continue; }
+    const dot = dx * refx + dy * refy;
+    const sign = dot >= 0 ? 1 : -1;
+    sx += sign * dx; sy += sign * dy;
+  }
+  const n = Math.hypot(sx, sy);
+  if (n < 1e-9) return null;
+  return [sx / n, sy / n];
+}
+
+export function groupVP(group, V, camera, isParallel) {
+  if (isParallel) {
+    const d = averageDir2D(group.edges, V);
+    return d ? { type: 'infinity', dir2D: d } : { type: 'fail' };
+  }
+  const pairs = [];
+  for (let i = 0; i < group.edges.length; i++) {
+    for (let j = i + 1; j < group.edges.length; j++) {
+      const e1 = group.edges[i], e2 = group.edges[j];
+      const ang = lineAngleDeg(
+        { x: V[e1[1]].x - V[e1[0]].x, y: V[e1[1]].y - V[e1[0]].y },
+        { x: V[e2[1]].x - V[e2[0]].x, y: V[e2[1]].y - V[e2[0]].y });
+      if (ang < 0.5) continue;
+      const vp = lineIntersect(V[e1[0]], V[e1[1]], V[e2[0]], V[e2[1]]);
+      if (vp) pairs.push({ ang, vp });
+    }
+  }
+  if (!pairs.length) {
+    const d = averageDir2D(group.edges, V);
+    return d ? { type: 'infinity', dir2D: d } : { type: 'fail' };
+  }
+  let wx = 0, wy = 0, wsum = 0;
+  for (const p of pairs) {
+    const w = Math.sin(p.ang * Math.PI / 180);
+    if (w < 0.05) continue;
+    wx += p.vp.x * w; wy += p.vp.y * w; wsum += w;
+  }
+  if (wsum < 1e-6) {
+    const d = averageDir2D(group.edges, V);
+    return d ? { type: 'infinity', dir2D: d } : { type: 'fail' };
+  }
+  const vp = { x: wx / wsum, y: wy / wsum };
+  const pp = camera.principalPoint;
+  const d = camera.focalLength;
+  if (Math.hypot(vp.x - pp.x, vp.y - pp.y) > 100 * d) {
+    const dir = averageDir2D(group.edges, V);
+    return dir ? { type: 'infinity', dir2D: dir } : { type: 'fail' };
+  }
+  return { type: 'finite', x: vp.x, y: vp.y };
+}
+
+export function dirFromVP(vp, camera) {
+  const pp = camera.principalPoint;
+  const d = camera.focalLength;
+  if (vp.type === 'infinity') {
+    if (!vp.dir2D) return null;
+    const [ux, uy] = vp.dir2D;
+    return [ux, -uy, 0];
+  }
+  const dx = vp.x - pp.x, dy = pp.y - vp.y, dz = d;
+  const n = Math.hypot(dx, dy, dz);
+  if (n < 1e-9) return null;
+  return [dx / n, dy / n, dz / n];
+}
+
+// ===== Fixed camera helpers =====
+
+export function getCameraVPs(camera) {
+  const R = camera.R_wc;
+  const pp = camera.principalPoint;
+  const d = camera.focalLength;
+  function vpOf(colIdx) {
+    const dir = [R[0][colIdx], R[1][colIdx], R[2][colIdx]];
+    if (Math.abs(dir[2]) < 1e-6) return null;
+    return { x: pp.x + d * dir[0] / dir[2], y: pp.y - d * dir[1] / dir[2] };
+  }
+  return [vpOf(0), vpOf(1), vpOf(2)];
+}
+
+function assignVPsToGroups(groups, V, cameraVPs, camera) {
+  const naturalVPs = groups.map((g) => groupVP(g, V, camera, false));
+  const perms = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+  let best = null, bestScore = Infinity;
+
+  for (const perm of perms) {
+    let score = 0, ok = true;
+    for (let i = 0; i < 3; i++) {
+      const axisIdx = perm[i];
+      const nat = naturalVPs[i];
+      const cvp = cameraVPs[axisIdx];
+      if (nat && nat.type === 'finite' && cvp) {
+        score += Math.hypot(cvp.x - nat.x, cvp.y - nat.y);
+      } else if (nat && nat.type === 'finite' && !cvp) {
+        score += 10000;
+      } else if ((!nat || nat.type !== 'finite') && !cvp) {
+        score += 0;
+      } else {
+        ok = false; break;
+      }
+    }
+    if (ok && score < bestScore) { bestScore = score; best = perm; }
+  }
+  if (!best) return null;
+  return best.map((axisIdx, groupIdx) => ({ axisIdx, groupIdx }));
+}
+
+// ===== orientDir / solveL / buildT2 / buildT3 =====
+
+function orientDir(d3, edge, V, vp) {
+  if (!d3) return null;
+  const ex = V[edge[1]].x - V[edge[0]].x, ey = V[edge[1]].y - V[edge[0]].y;
+  let rx, ry;
+  if (vp.type === 'infinity' || vp.type === 'axisInf') {
+    rx = d3[0]; ry = -d3[1];
+  } else {
+    rx = vp.x - V[edge[0]].x; ry = vp.y - V[edge[0]].y;
+  }
+  return (rx * ex + ry * ey) >= 0 ? d3 : [-d3[0], -d3[1], -d3[2]];
+}
+
+function solveL(centerCam, dir, target, camera) {
+  const ctx = camera.cameraContext();
+  const { picCx, picCy, d } = ctx;
+  const [Xc, Yc, Zc] = centerCam;
+  const [dx, dy, dz] = dir;
+  const px = target.x - picCx, py = picCy - target.y;
+  const denX = px * dz - d * dx, numX = d * Xc - px * Zc;
+  const Lx = Math.abs(denX) > 1e-3 ? numX / denX : null;
+  const denY = py * dz - d * dy, numY = d * Yc - py * Zc;
+  const Ly = Math.abs(denY) > 1e-3 ? numY / denY : null;
+  const cands = [Lx, Ly].filter((v) => v != null && v > 1e-3 && isFinite(v));
+  if (!cands.length) return null;
+  return cands.reduce((a, b) => a + b, 0) / cands.length;
+}
+
+function add3(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+function scale3(a, k) { return [a[0] * k, a[1] * k, a[2] * k]; }
+
+function buildT3(structure, rawDirs, vps, camera, V) {
+  const { C, N, X12, X13, X23 } = structure;
+  const refs = [[C, N[0]], [C, N[1]], [C, N[2]]];
+  const d = rawDirs.map((dir, i) => orientDir(dir, refs[i], V, vps[i]));
+  if (d.some((x) => !x)) return { ok: false, reason: 'Ğ½Ğ°Ğ¿Ñ€Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ' };
+
+  const pp = camera.principalPoint;
+  const focal = camera.focalLength;
+  const Z0 = 2 * focal;
+  const Cpt = V[C];
+  const Ccam = [(Cpt.x - pp.x) * Z0 / focal, (pp.y - Cpt.y) * Z0 / focal, Z0];
+
+  const L = [0, 1, 2].map((i) => solveL(Ccam, d[i], V[N[i]], camera));
+  if (L.some((l) => l == null)) return { ok: false, reason: 'L' };
+
+  const Ncam = [0, 1, 2].map((i) => add3(Ccam, scale3(d[i], L[i])));
+  const X12cam = add3(add3(Ncam[0], Ncam[1]), scale3(Ccam, -1));
+  const X13cam = add3(add3(Ncam[0], Ncam[2]), scale3(Ccam, -1));
+  const X23cam = add3(add3(Ncam[1], Ncam[2]), scale3(Ccam, -1));
+  const back = add3(add3(add3(Ncam[0], Ncam[1]), Ncam[2]), scale3(Ccam, -2));
+
+  const pos3D = new Map([
+    [C, Ccam], [N[0], Ncam[0]], [N[1], Ncam[1]], [N[2], Ncam[2]],
+    [X12, X12cam], [X13, X13cam], [X23, X23cam],
+  ]);
+  const fullVertices = new Map(pos3D);
+  fullVertices.set('__back__', back);
+  const allEdges = [
+    [C, N[0]], [C, N[1]], [C, N[2]],
+    [N[0], X12], [N[0], X13], [N[1], X12], [N[1], X23], [N[2], X13], [N[2], X23],
+    [X12, '__back__'], [X13, '__back__'], [X23, '__back__'],
+  ];
+  return { ok: true, pos3D, fullVertices, allEdges };
+}
+
+function buildT2(structure, rawDirs, vps, camera, V) {
+  const { A, B, cycles } = structure;
+  const [c1, c2] = cycles;
+  const Y1 = c1.Y, X1 = c1.X, Y2 = c2.Y, X2 = c2.X;
+
+  const dC = orientDir(rawDirs[0], [A, B], V, vps[0]);
+  const dL = orientDir(rawDirs[1], [A, Y1], V, vps[1]);
+  const dR = orientDir(rawDirs[2], [A, Y2], V, vps[2]);
+  if (!dC || !dL || !dR) return { ok: false, reason: 'Ğ½Ğ°Ğ¿Ñ€Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ' };
+
+  const pp = camera.principalPoint;
+  const focal = camera.focalLength;
+  const Z0 = 2 * focal;
+  const Apt = V[A];
+  const Acam = [(Apt.x - pp.x) * Z0 / focal, (pp.y - Apt.y) * Z0 / focal, Z0];
+
+  const Lc = solveL(Acam, dC, V[B], camera);
+  const Ll = solveL(Acam, dL, V[Y1], camera);
+  const Lr = solveL(Acam, dR, V[Y2], camera);
+  if ([Lc, Ll, Lr].some((l) => l == null)) return { ok: false, reason: 'L' };
+
+  const Bcam = add3(Acam, scale3(dC, Lc));
+  const Y1cam = add3(Acam, scale3(dL, Ll));
+  const X1cam = add3(Bcam, scale3(dL, Ll));
+  const Y2cam = add3(Acam, scale3(dR, Lr));
+  const X2cam = add3(Bcam, scale3(dR, Lr));
+  const btCam = add3(Y1cam, scale3(dR, Lr));
+  const bbCam = add3(X1cam, scale3(dR, Lr));
+
+  const pos3D = new Map([
+    [A, Acam], [B, Bcam], [Y1, Y1cam], [X1, X1cam], [Y2, Y2cam], [X2, X2cam],
+  ]);
+  const fullVertices = new Map(pos3D);
+  fullVertices.set('__bt__', btCam);
+  fullVertices.set('__bb__', bbCam);
+  const allEdges = [
+    [A, B], [A, Y1], [B, X1], [Y1, X1], [A, Y2], [B, X2], [Y2, X2],
+    [Y1, '__bt__'], [Y2, '__bt__'],
+    [X1, '__bb__'], [X2, '__bb__'],
+    ['__bt__', '__bb__'],
+  ];
+  return { ok: true, pos3D, fullVertices, allEdges };
+}
+
+function computeError(pos3D, V, camera) {
+  let total = 0, max = 0, count = 0;
+  for (const [id, p] of pos3D) {
+    const proj = camera.project3D(p);
+    if (!proj) return { ok: false };
+    const vert = V[id];
+    if (!vert) continue;
+    const err = Math.hypot(proj.x - vert.x, proj.y - vert.y);
+    total += err; max = Math.max(max, err); count++;
+  }
+  if (count === 0) return { ok: false };
+  return { ok: true, avg: total / count, max };
+}
+
+// ===== analyze =====
+export function analyze(segments, camera, options = {}) {
+  const { fixedCamera = false } = options;
+  const solid = segments.filter((s) => s.style !== 'dashed');
+  if (solid.length < 1) return [];
+  const comps = componentize(solid);
+  const results = [];
+
+  comps.forEach((comp, idx) => {
+    const raw = buildGraph(comp);
+    const merged = simplifyGraph(raw);
+    const colors = graphColors(idx);
+    const res = {
+      idx, raw, merged, colors,
+      type: null, structure: null, groups: null, vps: null,
+      perspective: null, parallelGroups: null, angles: null,
+      pos3D: null, fullVertices: null, allEdges: null,
+      error: null, success: false, reason: '', fixedCamera,
+    };
+
+    if (merged.vertices.length === 0 || merged.edges.length === 0) {
+      res.reason = 'Ğ¿ÑƒÑÑ‚Ğ¾Ğ¹ Ğ³Ñ€Ğ°Ñ„'; results.push(res); return;
+    }
+
+    const structure = findStructure(merged);
+    if (!structure) {
+      res.reason = `V=${merged.vertices.length} E=${merged.edges.length}`;
+      results.push(res); return;
+    }
+    res.type = structure.type;
+    res.structure = structure;
+
+    if (structure.type === 1) { res.reason = 'T1'; results.push(res); return; }
+
+    const groups = makeGroups(structure);
+    res.groups = groups;
+    const persp = classifyPerspective(groups, merged.vertices);
+    res.perspective = persp.perspective;
+    res.parallelGroups = persp.parallelGroups;
+    res.angles = persp.angles;
+
+    let vps, rawDirs;
+
+    if (fixedCamera) {
+      const cameraVPs = getCameraVPs(camera);
+      const assignment = assignVPsToGroups(groups, merged.vertices, cameraVPs, camera);
+      if (!assignment) { res.reason = 'VP match'; results.push(res); return; }
+      res.vps = assignment.map((a) => cameraVPs[a.axisIdx]
+        ? { type: 'finite', x: cameraVPs[a.axisIdx].x, y: cameraVPs[a.axisIdx].y, axisIdx: a.axisIdx }
+        : { type: 'axisInf', axisIdx: a.axisIdx });
+      const R = camera.R_wc;
+      rawDirs = assignment.map((a) => [R[0][a.axisIdx], R[1][a.axisIdx], R[2][a.axisIdx]]);
+      vps = res.vps;
+    } else {
+      vps = groups.map((g, i) => groupVP(g, merged.vertices, camera, persp.parallelGroups[i]));
+      res.vps = vps;
+      if (vps.some((v) => v.type === 'fail')) { res.reason = 'VP'; results.push(res); return; }
+      rawDirs = vps.map((v) => dirFromVP(v, camera));
+      if (rawDirs.some((d) => !d)) { res.reason = 'Ğ½Ğ°Ğ¿Ñ€Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ'; results.push(res); return; }
+    }
+
+    const build = structure.type === 3
+      ? buildT3(structure, rawDirs, vps, camera, merged.vertices)
+      : buildT2(structure, rawDirs, vps, camera, merged.vertices);
+
+    if (!build.ok) { res.reason = build.reason; results.push(res); return; }
+
+    const err = computeError(build.pos3D, merged.vertices, camera);
+    if (!err.ok) { res.reason = 'Ğ·Ğ° ĞºĞ°Ğ¼ĞµÑ€Ğ¾Ğ¹'; results.push(res); return; }
+
+    res.pos3D = build.pos3D;
+    res.fullVertices = build.fullVertices;
+    res.allEdges = build.allEdges;
+    res.error = err;
+    res.success = true;
+    results.push(res);
+  });
+
+  return results;
+}
+
+
+=== FILE: domain/scene.js ===
+import { Box } from './box.js'
+import { Segment } from './segment.js'
+
+export class Scene {
+  constructor() {
+    this.boxes = [];
+    this.segments = [];
+    this.examSegments = [];
+    this.selectedBoxId = null;
+    this.selectedSegmentId = null;
+    this.selectedExamSegmentId = null;
+    this.nextBoxId = 1;
+    this.nextSegmentId = 1;
+    this.nextExamSegmentId = 1;
+  }
+
+  addBox(box) { this.boxes.push(box); }
+  removeBox(id) {
+    this.boxes = this.boxes.filter((b) => b.id !== id);
+    if (this.selectedBoxId === id) this.selectedBoxId = null;
+  }
+  getSelectedBox() { return this.boxes.find((b) => b.id === this.selectedBoxId) || null; }
+
+  hitBox(world, tolerance) {
+    for (let i = this.boxes.length - 1; i >= 0; i--) {
+      const b = this.boxes[i];
+      if (Math.hypot(b.center.x - world.x, b.center.y - world.y) < tolerance) return b;
+    }
+    return null;
+  }
+
+  addSegment(seg) { this.segments.push(seg); }
+  removeSegment(id) {
+    this.segments = this.segments.filter((s) => s.id !== id);
+    if (this.selectedSegmentId === id) this.selectedSegmentId = null;
+  }
+  getSelectedSegment() { return this.segments.find((s) => s.id === this.selectedSegmentId) || null; }
+
+  addExamSegment(seg) { this.examSegments.push(seg); }
+  removeExamSegment(id) {
+    this.examSegments = this.examSegments.filter((s) => s.id !== id);
+    if (this.selectedExamSegmentId === id) this.selectedExamSegmentId = null;
+  }
+  getSelectedExamSegment() { return this.examSegments.find((s) => s.id === this.selectedExamSegmentId) || null; }
+
+  getSegmentsForMode(mode) {
+    return mode === 'exam' ? this.examSegments : this.segments;
+  }
+
+  hitSegmentBody(world, tolerance, mode = 'practice') {
+    const list = this.getSegmentsForMode(mode);
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].hitTest(world, tolerance)) return list[i];
+    }
+    return null;
+  }
+
+  hitSegmentEndpoint(world, tolerance, mode = 'practice') {
+    const list = this.getSegmentsForMode(mode);
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i];
+      if (Math.hypot(s.a.x - world.x, s.a.y - world.y) < tolerance) return { segId: s.id, end: 'a', mode };
+      if (Math.hypot(s.b.x - world.x, s.b.y - world.y) < tolerance) return { segId: s.id, end: 'b', mode };
+    }
+    return null;
+  }
+
+  toSnapshot() {
+    return {
+      boxes: this.boxes.map((b) => b.toSnapshot()),
+      segments: this.segments.map((s) => s.toSnapshot()),
+      examSegments: this.examSegments.map((s) => s.toSnapshot()),
+      selectedBoxId: this.selectedBoxId,
+      selectedSegmentId: this.selectedSegmentId,
+      selectedExamSegmentId: this.selectedExamSegmentId,
+      nextBoxId: this.nextBoxId,
+      nextSegmentId: this.nextSegmentId,
+      nextExamSegmentId: this.nextExamSegmentId,
+    };
+  }
+
+  static fromSnapshot(s) {
+    const sc = new Scene();
+    sc.boxes = (s.boxes || []).map((b) => Box.fromSnapshot(b));
+    sc.segments = (s.segments || []).map((seg) => Segment.fromSnapshot(seg));
+    sc.examSegments = (s.examSegments || []).map((seg) => Segment.fromSnapshot(seg));
+    sc.selectedBoxId = s.selectedBoxId ?? null;
+    sc.selectedSegmentId = s.selectedSegmentId ?? null;
+    sc.selectedExamSegmentId = s.selectedExamSegmentId ?? null;
+    sc.nextBoxId = s.nextBoxId ?? 1;
+    sc.nextSegmentId = s.nextSegmentId ?? 1;
+    sc.nextExamSegmentId = s.nextExamSegmentId ?? 1;
+    return sc;
+  }
+}
+
+
+=== FILE: domain/segment.js ===
+export class Segment {
+  constructor({ id, a, b, style = 'solid' }) {
+    this.id = id;
+    this.a = { x: a.x, y: a.y };
+    this.b = { x: b.x, y: b.y };
+    this.style = style;
+  }
+
+  getMid() { return { x: (this.a.x + this.b.x) / 2, y: (this.a.y + this.b.y) / 2 }; }
+  getLength() { return Math.hypot(this.b.x - this.a.x, this.b.y - this.a.y); }
+
+  projectPoint(p) {
+    const dx = this.b.x - this.a.x, dy = this.b.y - this.a.y;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 1e-9) return { x: this.a.x, y: this.a.y, t: 0 };
+    const t = ((p.x - this.a.x) * dx + (p.y - this.a.y) * dy) / len2;
+    return { x: this.a.x + t * dx, y: this.a.y + t * dy, t };
+  }
+
+  distanceTo(p) {
+    const pr = this.projectPoint(p);
+    const tClamped = Math.max(0, Math.min(1, pr.t));
+    const cx = this.a.x + tClamped * (this.b.x - this.a.x);
+    const cy = this.a.y + tClamped * (this.b.y - this.a.y);
+    return Math.hypot(p.x - cx, p.y - cy);
+  }
+
+  hitTest(p, tolerance) {
+    return this.distanceTo(p) < tolerance;
+  }
+
+  toSnapshot() {
+    return {
+      id: this.id,
+      a: { x: this.a.x, y: this.a.y },
+      b: { x: this.b.x, y: this.b.y },
+      style: this.style,
+    };
+  }
+
+  static fromSnapshot(s) {
+    return new Segment({
+      id: s.id,
+      a: { x: s.a.x, y: s.a.y },
+      b: { x: s.b.x, y: s.b.y },
+      style: s.style,
+    });
+  }
+}
+
+
+=== FILE: domain/box.js ===
+import { DEFAULTS } from '../config.js'
+import { rotationMatrixXYZ } from '../core/math.js'
+
+export class Box {
+  constructor({ id, center, size, rotation, link = null }) {
+    this.id = id;
+    this.center = { x: center.x, y: center.y };
+    this.size = { w: size.w, h: size.h, dep: size.dep };
+    this.rotation = { rx: rotation.rx || 0, ry: rotation.ry || 0, rz: rotation.rz || 0 };
+    this.link = link ? { ...link } : null;
+  }
+
+  static default({ id, center }) {
+    return new Box({
+      id,
+      center: center || { x: 0, y: 0 },
+      size: { ...DEFAULTS.boxSize },
+      rotation: { rx: 0, ry: 0, rz: 0 },
+      link: null,
+    });
+  }
+
+  static defaultLinked({ id, center }) {
+    return new Box({
+      id,
+      center: center || { x: 0, y: 0 },
+      size: { ...DEFAULTS.boxSize },
+      rotation: { rx: 0, ry: 0, rz: 0 },
+      link: { ...DEFAULTS.linkDefaults },
+    });
+  }
+
+  getRotationMatrix() {
+    return rotationMatrixXYZ(this.rotation.rx, this.rotation.ry, this.rotation.rz);
+  }
+
+  hasLink() { return !!this.link; }
+
+  getMainCenterCam(camera) {
+    const pp = camera.principalPoint;
+    const d = camera.focalLength;
+    const Z0 = 2 * d;
+    return [
+      (this.center.x - pp.x) * Z0 / d,
+      -(this.center.y - pp.y) * Z0 / d,
+      Z0,
+    ];
+  }
+
+  toSnapshot() {
+    return {
+      id: this.id,
+      center: { x: this.center.x, y: this.center.y },
+      size: { w: this.size.w, h: this.size.h, dep: this.size.dep },
+      rotation: { rx: this.rotation.rx, ry: this.rotation.ry, rz: this.rotation.rz },
+      link: this.link ? { ...this.link } : null,
+    };
+  }
+
+  static fromSnapshot(s) {
+    return new Box({
+      id: s.id,
+      center: { x: s.center.x, y: s.center.y },
+      size: { w: s.size.w, h: s.size.h, dep: s.size.dep },
+      rotation: { rx: s.rotation.rx, ry: s.rotation.ry, rz: s.rotation.rz },
+      link: s.link ? { ...s.link } : null,
+    });
+  }
+}
+
+
+=== FILE: tools.js ===
+import { THRESHOLDS } from './config.js'
+import { Box } from './domain/box.js'
+import { Segment } from './domain/segment.js'
+
+function getSegmentsForMode(state) {
+  return state.ui.mode === 'exam' ? state.document.examSegments : state.document.segments;
+}
+
+function getPracticePoints(state) {
+  const pts = [];
+  for (const s of getSegmentsForMode(state)) {
+    pts.push({ x: s.a.x, y: s.a.y });
+    pts.push({ x: s.b.x, y: s.b.y });
+  }
+  return pts;
+}
+
+function snapToPoints(state, w) {
+  const pts = getPracticePoints(state);
+  let best = null, bestDist = THRESHOLDS.snapPointPx;
+  for (const p of pts) {
+    const d = Math.hypot(p.x - w.x, p.y - w.y);
+    if (d < bestDist) { best = p; bestDist = d; }
+  }
+  return best ? { x: best.x, y: best.y, type: 'point' } : null;
+}
+
+function snapToLines(state, w) {
+  let bestSeg = null, bestDist = THRESHOLDS.snapLinePx;
+  for (const s of getSegmentsForMode(state)) {
+    const dx = s.b.x - s.a.x, dy = s.b.y - s.a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) continue;
+    const d = Math.abs((w.x - s.a.x) * dy - (w.y - s.a.y) * dx) / len;
+    if (d < bestDist) { bestSeg = s; bestDist = d; }
+  }
+  if (bestSeg) {
+    const proj = bestSeg.projectPoint(w);
+    return { x: proj.x, y: proj.y, type: 'line' };
+  }
+  return null;
+}
+
+export function applySnap(state, w, mode) {
+  if (mode === 'points') return snapToPoints(state, w);
+  if (mode === 'lines') return snapToLines(state, w);
+  return null;
+}
+
+export class Tool {
+  constructor({ state, history }) { this.state = state; this.history = history; }
+  get name() { return 'base'; }
+  get cursor() { return 'default'; }
+  onPointerDown() {}
+  onPointerMove() {}
+  onPointerUp() {}
+  onPointerCancel() {}
+}
+
+export class CreateBoxTool extends Tool {
+  get name() { return 'create'; }
+  get cursor() { return 'crosshair'; }
+  onPointerDown(world) {
+    const box = Box.default({ id: 'b' + this.state.document.nextBoxId++, center: world });
+    this.state.document.addBox(box);
+    this.history.push(this.state.document);
+    this.state.emit();
+  }
+}
+
+export class CreateLinkTool extends Tool {
+  get name() { return 'link'; }
+  get cursor() { return 'crosshair'; }
+  onPointerDown(world) {
+    const box = Box.defaultLinked({ id: 'b' + this.state.document.nextBoxId++, center: world });
+    box.link.theta = 60 * Math.PI / 180;
+    this.state.document.addBox(box);
+    this.history.push(this.state.document);
+    this.state.emit();
+  }
+}
+
+export class MoveTool extends Tool {
+  constructor(ctx) {
+    super(ctx);
+    this.drag = null;
+  }
+  get name() { return 'move'; }
+  get cursor() { return 'move'; }
+
+  _hitVP3(w) {
+    if (this.state.ui.mode === 'practice') return false;
+    const cam = this.state.camera;
+    const r = cam.pictureRect;
+    const d = cam.focalLength;
+    const pp = cam.principalPoint;
+    const tanTheta = this.state.camera.horizonOffset * r.w / d;
+    if (Math.abs(tanTheta) < 1e-6) return false;
+    const vpY = pp.y + d / tanTheta;
+    if (vpY < THRESHOLDS.vp3MinMarginPx || vpY > cam.viewportHeight - THRESHOLDS.vp3MinMarginPx) return false;
+    return Math.hypot(pp.x - w.x, vpY - w.y) < THRESHOLDS.hitVP3Px;
+  }
+
+  onPointerDown(world) {
+    this.state.interaction.draft = null;
+    if (this._hitVP3(world)) {
+      this.drag = { kind: 'vp3' };
+      return;
+    }
+    const mode = this.state.ui.mode;
+    if (mode === 'theory') {
+      const box = this.state.document.hitBox(world, THRESHOLDS.hitBoxPx);
+      if (box) {
+        this.state.document.selectedBoxId = box.id;
+        this.drag = { kind: 'box', boxId: box.id, start: { x: box.center.x, y: box.center.y }, world };
+        this.state.emit();
+        return;
+      }
+    }
+    if (mode === 'practice' || mode === 'exam') {
+      const ep = this.state.document.hitSegmentEndpoint(world, THRESHOLDS.hitSegEndpointPx, mode);
+      if (ep) {
+        const list = mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
+        const seg = list.find((s) => s.id === ep.segId);
+        if (mode === 'exam') this.state.document.selectedExamSegmentId = ep.segId;
+        else this.state.document.selectedSegmentId = ep.segId;
+        this.drag = { kind: 'endpoint', segId: ep.segId, end: ep.end, mode, orig: { x: seg[ep.end].x, y: seg[ep.end].y }, world };
+        this.state.emit();
+        return;
+      }
+      const body = this.state.document.hitSegmentBody(world, THRESHOLDS.hitSegBodyPx, mode);
+      if (body) {
+        if (mode === 'exam') this.state.document.selectedExamSegmentId = body.id;
+        else this.state.document.selectedSegmentId = body.id;
+        this.drag = { kind: 'select' };
+        this.state.emit();
+        return;
+      }
+      if (mode === 'exam') this.state.document.selectedExamSegmentId = null;
+      else this.state.document.selectedSegmentId = null;
+    }
+    this.drag = { kind: 'pan', view: { ...this.state.view }, world };
+  }
+
+  onPointerMove(world) {
+    if (!this.drag) return;
+    const d = this.drag;
+    if (d.kind === 'box') {
+      const box = this.state.document.boxes.find((b) => b.id === d.boxId);
+      if (box) {
+        box.center.x = d.start.x + (world.x - d.world.x);
+        box.center.y = d.start.y + (world.y - d.world.y);
+      }
+    } else if (d.kind === 'pan') {
+      this.state.view.x = d.view.x + (world.x - d.world.x);
+      this.state.view.y = d.view.y + (world.y - d.world.y);
+    } else if (d.kind === 'endpoint') {
+      const list = d.mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
+      const seg = list.find((s) => s.id === d.segId);
+      if (seg) {
+        seg[d.end].x = d.orig.x + (world.x - d.world.x);
+        seg[d.end].y = d.orig.y + (world.y - d.world.y);
+      }
+    } else if (d.kind === 'vp3') {
+      const cam = this.state.camera;
+      const pp = cam.principalPoint;
+      const r = cam.pictureRect;
+      const dY = world.y - pp.y;
+      if (Math.abs(dY) < 5) return;
+      const newOff = Math.max(-1.5, Math.min(1.5, (cam.focalLength / dY) * cam.focalLength / r.w));
+      cam.horizonOffset = newOff;
+    }
+    this.state.emit();
+  }
+
+  onPointerUp() {
+    if (!this.drag) return;
+    if (this.drag.kind !== 'pan' && this.drag.kind !== 'select') {
+      this.history.push(this.state.document);
+    }
+    this.drag = null;
+    this.state.emit();
+  }
+
+  onPointerCancel() { this.drag = null; }
+}
+
+export class SegmentTool extends Tool {
+  constructor(ctx) {
+    super(ctx);
+    this.gestureMoved = false;
+  }
+  get name() { return 'segment'; }
+  get cursor() { return 'crosshair'; }
+
+  onPointerDown(world) {
+    const st = this.state;
+    const draft = st.interaction.draft;
+    if (draft) {
+      const dx = world.x - draft.startX, dy = world.y - draft.startY;
+      if (Math.hypot(dx, dy) < THRESHOLDS.minSegLenPx) {
+        st.interaction.draft = null;
+        st.emit();
+        return;
+      }
+      const endSnap = applySnap(st, world, st.ui.snapEnd);
+      this._commit(draft.startX, draft.startY, endSnap ? endSnap.x : world.x, endSnap ? endSnap.y : world.y);
+      return;
+    }
+    const startSnap = applySnap(st, world, st.ui.snapStart);
+    st.interaction.draft = {
+      startX: startSnap ? startSnap.x : world.x,
+      startY: startSnap ? startSnap.y : world.y,
+      cursorX: world.x, cursorY: world.y,
+      cursorSnapType: null,
+    };
+    this.gestureMoved = false;
+    st.emit();
+  }
+
+  onPointerMove(world) {
+    const st = this.state;
+    const draft = st.interaction.draft;
+    if (!draft) return;
+    const endSnap = applySnap(st, world, st.ui.snapEnd);
+    draft.cursorX = endSnap ? endSnap.x : world.x;
+    draft.cursorY = endSnap ? endSnap.y : world.y;
+    draft.cursorSnapType = endSnap ? endSnap.type : null;
+    const dx = world.x - draft.startX, dy = world.y - draft.startY;
+    if (Math.hypot(dx, dy) > THRESHOLDS.dragThresholdPx) this.gestureMoved = true;
+    st.emit();
+  }
+
+  onPointerUp(world) {
+    const st = this.state;
+    const draft = st.interaction.draft;
+    if (!draft) { this.gestureMoved = false; return; }
+    if (this.gestureMoved) {
+      const endSnap = applySnap(st, world, st.ui.snapEnd);
+      this._commit(draft.startX, draft.startY, endSnap ? endSnap.x : world.x, endSnap ? endSnap.y : world.y);
+    }
+    this.gestureMoved = false;
+  }
+
+  onPointerCancel() {
+    this.gestureMoved = false;
+    if (this.state.interaction.draft) {
+      this.state.interaction.draft = null;
+      this.state.emit();
+    }
+  }
+
+  _commit(startX, startY, endX, endY) {
+    const st = this.state;
+    if (Math.hypot(endX - startX, endY - startY) < THRESHOLDS.minSegLenPx) {
+      st.interaction.draft = null;
+      st.emit();
+      return;
+    }
+    const isExam = st.ui.mode === 'exam';
+    const id = isExam ? ('ex' + st.document.nextExamSegmentId++) : ('sg' + st.document.nextSegmentId++);
+    const seg = new Segment({
+      id,
+      a: { x: startX, y: startY },
+      b: { x: endX, y: endY },
+      style: st.ui.defaultSegmentStyle,
+    });
+    if (isExam) st.document.addExamSegment(seg);
+    else st.document.addSegment(seg);
+    st.interaction.draft = null;
+    this.history.push(st.document);
+    st.emit();
+  }
+}
+
+export class EraseTool extends Tool {
+  constructor(ctx) {
+    super(ctx);
+    this.drag = null;
+  }
+  get name() { return 'erase'; }
+  get cursor() { return 'crosshair'; }
+
+  onPointerDown(world) {
+    const st = this.state;
+    const mode = st.ui.mode;
+    const hit = st.document.hitSegmentBody(world, THRESHOLDS.hitSegBodyPx, mode);
+    if (hit) {
+      if (mode === 'exam') st.document.removeExamSegment(hit.id);
+      else st.document.removeSegment(hit.id);
+      this.history.push(st.document);
+      st.emit();
+      return;
+    }
+    this.drag = { kind: 'pan', view: { ...st.view }, world };
+  }
+
+  onPointerMove(world) {
+    if (!this.drag) return;
+    const st = this.state;
+    st.view.x = this.drag.view.x + (world.x - this.drag.world.x);
+    st.view.y = this.drag.view.y + (world.y - this.drag.world.y);
+    st.emit();
+  }
+
+  onPointerUp() { this.drag = null; }
+  onPointerCancel() { this.drag = null; }
+}
+
+export function createTools({ state, history }) {
+  const ctx = { state, history };
+  return {
+    create: new CreateBoxTool(ctx),
+    link: new CreateLinkTool(ctx),
+    move: new MoveTool(ctx),
+    segment: new SegmentTool(ctx),
+    erase: new EraseTool(ctx),
+  };
+}
+
+
+=== FILE: layers.js ===
+export function drawSegments(ctx, state, mode) {
+  const list = mode === 'exam' ? state.document.examSegments : state.document.segments;
+  const selId = mode === 'exam'
+    ? state.document.selectedExamSegmentId
+    : state.document.selectedSegmentId;
+
+  for (const s of list) {
+    const selected = s.id === selId;
+    const isDashed = s.style === 'dashed';
+    const color = selected ? COLORS.segment.selected : (isDashed ? COLORS.segment.dashed : COLORS.segment.solid);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = selected ? 2.5 : 2;
+    if (isDashed) ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(s.a.x, s.a.y);
+    ctx.lineTo(s.b.x, s.b.y);
+    ctx.stroke();
+    ctx.restore();
+
+    for (const pt of [s.a, s.b]) {
+      ctx.fillStyle = selected ? COLORS.segment.selected : (isDashed ? COLORS.segment.dashed : '#7ab8ff');
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1; ctx.stroke();
+    }
+  }
+}
+
+
+=== FILE: Renderer.js ===
+import { COLORS } from './config.js'
+import { analyze } from './graph.js'
+import * as L from './layers.js'
+
+export class Renderer {
+  constructor({ canvas, state }) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.state = state;
+    this.DPR = Math.max(1, window.devicePixelRatio || 1);
+    this.w = 0;
+    this.h = 0;
+    this._resize();
+  }
+
+  _resize() {
+    const w = this.state.camera.viewportWidth;
+    const h = this.state.camera.viewportHeight;
+    const bw = Math.floor(w * this.DPR);
+    const bh = Math.floor(h * this.DPR);
+    if (this.canvas.width !== bw) this.canvas.width = bw;
+    if (this.canvas.height !== bh) this.canvas.height = bh;
+    this.canvas.style.width = w + 'px';
+    this.canvas.style.height = h + 'px';
+    this.ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0);
+    this.w = w;
+    this.h = h;
+  }
+
+  render() {
+    this._resize();
+    const ctx = this.ctx;
+    const state = this.state;
+    const camera = state.camera;
+    const mode = state.ui.mode;
+    const isPractice = mode === 'practice';
+    const isExam = mode === 'exam';
+    const isAnalysis = isPractice || isExam;
+
+    ctx.fillStyle = COLORS.background;
+    ctx.fillRect(0, 0, this.w, this.h);
+
+    let analysis = [];
+    if (isAnalysis &&
+        (state.ui.showRecognized || state.ui.showRawGraph || state.ui.showSimplifiedGraph)) {
+      const segs = isExam ? state.document.examSegments : state.document.segments;
+      analysis = analyze(segs, camera, { fixedCamera: isExam });
+    }
+
+    ctx.save();
+    ctx.translate(state.view.x, state.view.y);
+
+    L.drawPictureFrame(ctx, camera);
+
+    if (!isPractice) {
+      L.drawHorizon(ctx, camera);
+      if (state.ui.showSP) L.drawSP(ctx, camera);
+      L.drawVP3(ctx, state, camera);
+    }
+
+    if (state.ui.visibility.theory) L.drawBoxes(ctx, state, camera);
+    if (state.ui.visibility.practice) L.drawSegments(ctx, state, 'practice');
+    if (state.ui.visibility.exam) L.drawSegments(ctx, state, 'exam');
+
+    if (isAnalysis) L.drawDraft(ctx, state, camera);
+
+    if (state.ui.showRawGraph) L.drawRawGraph(ctx, analysis);
+    if (state.ui.showSimplifiedGraph) L.drawSimplifiedGraph(ctx, analysis);
+    if (state.ui.showRecognized) L.drawRecognized(ctx, analysis, camera);
+
+    ctx.restore();
+  }
+}
+
+
+=== FILE: LICENSE ===
+MIT License
+
+Copyright (c) 2026 Denis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+=== FILE: index.html ===
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Perspective Viewer</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="panels">
+  <div class="panel" id="panelSize">
+    <div class="panel-title"><span>Ğ Ğ°Ğ·Ğ¼ĞµÑ€Ñ‹</span></div>
+    <div id="sizeRows"><div class="hint">Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ ĞºÑƒĞ±</div></div>
+    <button class="del-btn" id="deleteBtn" disabled>Ğ£Ğ´Ğ°Ğ»Ğ¸Ñ‚ÑŒ</button>
+  </div>
+  <div class="panel" id="panelRot">
+    <div class="panel-title"><span>ĞŸĞ¾Ğ²Ğ¾Ñ€Ğ¾Ñ‚Ñ‹ / Ğ¡Ğ²ÑĞ·ÑŒ</span></div>
+    <div id="rotRows"><div class="hint">â€”</div></div>
+  </div>
+  <div class="panel" id="panelOrtho" style="display:none">
+    <div class="panel-title"><span style="color:#ffb800">ĞÑ€Ñ‚Ğ¾-Ñ‚Ñ€ĞµÑƒĞ³Ğ¾Ğ»ÑŒĞ½Ğ¸Ğº</span></div>
+    <div id="orthoRows"><div class="hint">â€”</div></div>
+  </div>
+  <div class="panel" id="panelSnap" style="display:none">
+    <div class="panel-title"><span>ĞŸÑ€Ğ¸Ğ»Ğ¸Ğ¿Ğ°Ğ½Ğ¸Ğµ</span></div>
+    <div class="snap-row">
+      <span class="snap-lbl">Ğ¡Ñ‚Ğ°Ñ€Ñ‚</span>
+      <div class="snap-seg" data-target="snapStart">
+        <button class="snap-btn active" data-val="points">Ğ¢Ñ‡Ğº</button>
+        <button class="snap-btn" data-val="lines">Ğ›Ğ¸Ğ½</button>
+        <button class="snap-btn" data-val="none">â€”</button>
+      </div>
+    </div>
+    <div class="snap-row">
+      <span class="snap-lbl">ĞšĞ¾Ğ½ĞµÑ†</span>
+      <div class="snap-seg" data-target="snapEnd">
+        <button class="snap-btn active" data-val="points">Ğ¢Ñ‡Ğº</button>
+        <button class="snap-btn" data-val="lines">Ğ›Ğ¸Ğ½</button>
+        <button class="snap-btn" data-val="none">â€”</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel" id="panelSegStyle" style="display:none">
+    <div class="panel-title"><span>Ğ’Ğ¸Ğ´ Ğ¾Ñ‚Ñ€ĞµĞ·ĞºĞ°</span></div>
+    <div id="segStyleInfo" class="hint">ĞĞ¾Ğ²Ñ‹Ğµ Ğ¾Ñ‚Ñ€ĞµĞ·ĞºĞ¸</div>
+    <div class="snap-row">
+      <span class="snap-lbl">Ğ¡Ñ‚Ğ¸Ğ»ÑŒ</span>
+      <div class="snap-seg" data-target="segStyle">
+        <button class="snap-btn active" data-val="solid">Ğ’Ğ¸Ğ´</button>
+        <button class="snap-btn" data-val="dashed">Ğ—Ğ°Ğ´</button>
+      </div>
+    </div>
+    <button class="del-btn" id="deleteSegBtn" disabled>Ğ£Ğ´Ğ°Ğ»Ğ¸Ñ‚ÑŒ Ğ¾Ñ‚Ñ€ĞµĞ·Ğ¾Ğº</button>
+  </div>
+</div>
+
+<div id="topRightControls">
+  <div class="top-box" id="statsBox">
+    <div class="tb-seg">
+      <button class="tb-seg-btn" data-mode="none" title="Ğ¡ĞºÑ€Ñ‹Ñ‚ÑŒ Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ñ‹">âˆ…</button>
+      <button class="tb-seg-btn" data-mode="size" title="Ğ¢Ğ¾Ğ»ÑŒĞºĞ¾ Ñ€Ğ°Ğ·Ğ¼ĞµÑ€Ñ‹">Ğ </button>
+      <button class="tb-seg-btn" data-mode="rotation" title="Ğ¢Ğ¾Ğ»ÑŒĞºĞ¾ Ğ¿Ğ¾Ğ²Ğ¾Ñ€Ğ¾Ñ‚Ñ‹">ĞŸ</button>
+      <button class="tb-seg-btn active" data-mode="full" title="Ğ’ÑÑ‘">Ğ’ÑÑ‘</button>
+    </div>
+    <button class="help-circle" id="helpBtn" title="Ğ¡Ğ¿Ñ€Ğ°Ğ²ĞºĞ°">?</button>
+  </div>
+  <div class="top-box" id="modeBox">
+    <div class="mode-col">
+      <div class="mode-row">
+        <button class="mode-btn active" data-mode="theory">Ğ¢ĞµĞ¾Ñ€</button>
+        <button class="vis-btn active" data-vis="theory" title="Ğ’Ğ¸Ğ´Ğ¸Ğ¼Ğ¾ÑÑ‚ÑŒ Ñ‚ĞµĞ¾Ñ€Ğ¸Ğ¸">âœ±</button>
+      </div>
+      <div class="mode-row">
+        <button class="mode-btn" data-mode="practice">ĞŸÑ€Ğ°ĞºÑ‚</button>
+        <button class="vis-btn active" data-vis="practice" title="Ğ’Ğ¸Ğ´Ğ¸Ğ¼Ğ¾ÑÑ‚ÑŒ Ğ¿Ñ€Ğ°ĞºÑ‚Ğ¸ĞºĞ¸">âœ±</button>
+      </div>
+      <div class="mode-row">
+        <button class="mode-btn" data-mode="exam">Ğ­ĞºĞ·Ğ°Ğ¼</button>
+        <button class="vis-btn active" data-vis="exam" title="Ğ’Ğ¸Ğ´Ğ¸Ğ¼Ğ¾ÑÑ‚ÑŒ ÑĞºĞ·Ğ°Ğ¼ĞµĞ½Ğ°">âœ±</button>
+      </div>
+    </div>
+  </div>
+  <div class="top-box" id="toolBox">
+    <div class="tool-indicator" id="toolIndicator">Ğ¡Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ğµ</div>
+    <div class="tool-bottom">
+      <div class="tb-seg" id="toolSegContainer"></div>
+    </div>
+  </div>
+</div>
+
+<div id="bottomBar">
+  <div class="bb-row">
+    <div class="bb-cell">
+      <button class="bb-btn active" id="spBtn" title="Ğ¢Ğ¾Ñ‡ĞºĞ° ÑÑ‚Ğ¾ÑĞ½Ğ¸Ñ">SP</button>
+      <button class="bb-btn active" id="guidesBtn" title="ĞĞ°Ğ¿Ñ€Ğ°Ğ²Ğ»ÑÑÑ‰Ğ¸Ğµ">ĞĞ°Ğ¿Ñ€</button>
+      <button class="bb-btn" id="guidesSecBtn" title="ĞĞ°Ğ¿Ñ€. Ğ²Ñ‚Ğ¾Ñ€Ğ¾ÑÑ‚ĞµĞ¿ĞµĞ½Ğ½Ğ¾Ğ³Ğ¾">ĞĞ°Ğ¿Ñ€â‚‚</button>
+      <button class="bb-btn ortho" id="triBtn" title="Ğ¢Ñ€ĞµÑƒĞ³Ğ¾Ğ»ÑŒĞ½Ğ¸Ğº VP">Ğ¢Ñ€</button>
+      <button class="bb-btn ortho" id="orthoTableBtn" title="ĞÑ€Ñ‚Ğ¾-Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğ°">ĞÑ€Ñ‚Ğ¾</button>
+      <button class="bb-btn reco" id="cubeRecoBtn" title="Ğ Ğ°ÑĞ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ÑŒ ĞºÑƒĞ±Ñ‹" style="display:none">ĞšÑƒĞ±</button>
+      <button class="bb-btn raw" id="rawGraphBtn" title="Ğ¢Ğ¾Ñ‡ĞºĞ¸ Ğ¸ÑÑ…Ğ¾Ğ´Ğ½Ğ¾Ğ³Ğ¾ Ğ³Ñ€Ğ°Ñ„Ğ°" style="display:none">Ğ¢Ğ¾Ñ‡ĞºĞ¸</button>
+      <button class="bb-btn simp" id="simpGraphBtn" title="Ğ£Ğ¿Ñ€Ğ¾Ñ‰Ñ‘Ğ½Ğ½Ñ‹Ğ¹ Ğ³Ñ€Ğ°Ñ„" style="display:none">Ğ£Ğ¿Ñ€Ğ¾Ñ‰</button>
+      <button class="bb-btn" id="undoBtn" disabled title="ĞÑ‚Ğ¼ĞµĞ½Ğ¸Ñ‚ÑŒ">â†¶</button>
+      <button class="bb-btn" id="clearBtn" title="ĞÑ‡Ğ¸ÑÑ‚Ğ¸Ñ‚ÑŒ">â†º</button>
+    </div>
+  </div>
+  <div class="bb-row">
+    <div class="bb-cell" id="fovCell" style="flex: 2 1 0;">
+      <span class="lbl">FOV</span>
+      <input type="range" id="fovSlider" min="20" max="140" step="1" value="90">
+      <span class="val" id="fovValue">90Â°</span>
+    </div>
+    <div class="bb-cell" style="flex: 0 0 130px;">
+      <span class="lbl">â–¡</span>
+      <input type="number" class="size-input" id="sizeInput" value="20" min="1" max="200" step="1">
+      <span class="lbl">ÑĞ¼</span>
+    </div>
+    <div class="bb-cell" style="flex: 0 0 86px;">
+      <span class="lbl">Ğ”Ğ¸ÑÑ‚</span>
+      <span class="val dist-val" id="distValue" style="min-width:0">â€”</span>
+    </div>
+  </div>
+  <div class="bb-row" id="horizonRow">
+    <div class="bb-cell" id="horizonCell">
+      <span class="lbl">Ğ“Ğ¾Ñ€</span>
+      <input type="range" id="horizonSlider" min="-150" max="150" step="1" value="0">
+      <span class="val" id="horizonValue">0.00</span>
+    </div>
+  </div>
+</div>
+
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>Perspective Viewer</h2>
+    <h3>Ğ ĞµĞ¶Ğ¸Ğ¼Ñ‹</h3>
+    <ul>
+      <li><b>Ğ¢ĞµĞ¾Ñ€</b> â€” 3D-ĞºÑƒĞ±Ñ‹ Ñ Ğ¿Ğ¾Ğ»Ğ½Ñ‹Ğ¼Ğ¸ Ğ¿Ğ¾Ğ´ÑĞºĞ°Ğ·ĞºĞ°Ğ¼Ğ¸. FOV, Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚, SP â€” Ğ·Ğ°Ğ´Ğ°ÑÑ‚ÑÑ Ğ²Ğ°Ğ¼Ğ¸.</li>
+      <li><b>ĞŸÑ€Ğ°ĞºÑ‚</b> â€” Ğ¾Ñ‚Ñ€ĞµĞ·ĞºĞ¸, Ñ€Ğ°ÑĞ¿Ğ¾Ğ·Ğ½Ğ°Ğ²Ğ°Ğ½Ğ¸Ğµ, Ğ¾Ñ‚Ğ»Ğ°Ğ´ĞºĞ° Ğ³Ñ€Ğ°Ñ„Ğ°. FOV Ğ¸ Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚ ÑĞºÑ€Ñ‹Ñ‚Ñ‹.</li>
+      <li><b>Ğ­ĞºĞ·Ğ°Ğ¼</b> â€” 3D-ĞºÑƒĞ±Ñ‹ Ğ±ĞµĞ· Ğ¿Ğ¾Ğ´ÑĞºĞ°Ğ·Ğ¾Ğº. FOV, Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚, SP â€” Ğ·Ğ°Ğ´Ğ°ÑÑ‚ÑÑ Ğ²Ğ°Ğ¼Ğ¸.</li>
+    </ul>
+    <h3>ĞšĞ½Ğ¾Ğ¿ĞºĞ¸ Ğ²Ğ¸Ğ´Ğ¸Ğ¼Ğ¾ÑÑ‚Ğ¸</h3>
+    <p>Ğ ÑĞ´Ğ¾Ğ¼ Ñ ĞºĞ°Ğ¶Ğ´Ğ¾Ğ¹ Ğ²ĞºĞ»Ğ°Ğ´ĞºĞ¾Ğ¹ â€” ĞºĞ½Ğ¾Ğ¿ĞºĞ° <b>âœ±</b>. ĞĞ½Ğ° Ğ²ĞºĞ»ÑÑ‡Ğ°ĞµÑ‚/Ğ²Ñ‹ĞºĞ»ÑÑ‡Ğ°ĞµÑ‚ Ğ¾Ñ‚Ğ¾Ğ±Ñ€Ğ°Ğ¶ĞµĞ½Ğ¸Ğµ ÑĞ»ĞµĞ¼ĞµĞ½Ñ‚Ğ¾Ğ² ÑÑ‚Ğ¾Ğ¹ Ğ²ĞºĞ»Ğ°Ğ´ĞºĞ¸. ĞœĞ¾Ğ¶Ğ½Ğ¾ Ğ¾Ğ´Ğ½Ğ¾Ğ²Ñ€ĞµĞ¼ĞµĞ½Ğ½Ğ¾ Ğ²Ğ¸Ğ´ĞµÑ‚ÑŒ ĞºÑƒĞ±Ñ‹ Ñ‚ĞµĞ¾Ñ€Ğ¸Ğ¸ Ğ¸ ĞºÑƒĞ±Ñ‹ ÑĞºĞ·Ğ°Ğ¼ĞµĞ½Ğ°, Ğ¸Ğ»Ğ¸ ĞºÑƒĞ±Ñ‹ Ğ¸ Ğ¾Ñ‚Ñ€ĞµĞ·ĞºĞ¸.</p>
+    <button class="help-close" id="helpCloseBtn">ĞŸĞ¾Ğ½ÑÑ‚Ğ½Ğ¾</button>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
+
+
+=== FILE: perspective.js ===
+import { angleAtVertex, mulM3M3 } from './core/math.js'
+
+export { angleAtVertex }
+
+export function computeVPTriangle(box, camera) {
+  if (!box) return null;
+  const R_main = box.getRotationMatrix();
+  const R_main_cam = mulM3M3(camera.R_wc, R_main);
+  const ctx = camera.cameraContext();
+  const { picCx, picCy, d } = ctx;
+
+  function vpOf(colIdx) {
+    const dir = [R_main_cam[0][colIdx], R_main_cam[1][colIdx], R_main_cam[2][colIdx]];
+    if (Math.abs(dir[2]) < 1e-4) return null;
+    return { x: picCx + d * dir[0] / dir[2], y: picCy - d * dir[1] / dir[2] };
+  }
+
+  const vps = { x: vpOf(0), y: vpOf(1), z: vpOf(2) };
+  const cmPerPx = camera.pictureSizeCm / camera.pictureRect.w;
+  const SP = { x: picCx, y: picCy };
+
+  const distToSP = {};
+  const distBetween = {};
+  const dotProducts = {};
+
+  for (const k of ['x', 'y', 'z'])
+    distToSP[k] = vps[k] ? Math.hypot(vps[k].x - SP.x, vps[k].y - SP.y) * cmPerPx : null;
+
+  for (const [a, b] of [['x', 'y'], ['y', 'z'], ['z', 'x']]) {
+    distBetween[a + b] = (vps[a] && vps[b])
+      ? Math.hypot(vps[a].x - vps[b].x, vps[a].y - vps[b].y) * cmPerPx : null;
+    if (vps[a] && vps[b]) {
+      dotProducts[a + b] =
+        ((vps[a].x - SP.x) * cmPerPx) * ((vps[b].x - SP.x) * cmPerPx) +
+        ((vps[a].y - SP.y) * cmPerPx) * ((vps[b].y - SP.y) * cmPerPx);
+    } else {
+      dotProducts[a + b] = null;
+    }
+  }
+
+  const dCm = (camera.pictureRect.w / 2) / Math.tan(camera.fov * Math.PI / 360) * cmPerPx;
+  const expectedDot = -dCm * dCm;
+
+  const vals = Object.values(dotProducts).filter((v) => v !== null);
+  let orthocentric = false, maxDev = 0;
+  if (vals.length === 3) {
+    const mean = vals.reduce((a, b) => a + b, 0) / 3;
+    maxDev = Math.max(...vals.map((v) => Math.abs(v - mean)));
+    orthocentric = maxDev < 0.02 * Math.max(Math.abs(mean), 1);
+  }
+
+  let orthocenter = null;
+  if (vps.x && vps.y && vps.z) {
+    const A = vps.x, B = vps.y, C = vps.z;
+    const BC = { x: C.x - B.x, y: C.y - B.y };
+    const AC = { x: C.x - A.x, y: C.y - A.y };
+    const det = BC.x * AC.y - BC.y * AC.x;
+    if (Math.abs(det) > 1e-4) {
+      const rhsa = A.x * BC.x + A.y * BC.y;
+      const rhsb = B.x * AC.x + B.y * AC.y;
+      orthocenter = {
+        x: (rhsa * AC.y - rhsb * BC.y) / det,
+        y: (BC.x * rhsb - AC.x * rhsa) / det,
+      };
+    }
+  }
+
+  const orthoToSPcm = orthocenter
+    ? Math.hypot(orthocenter.x - SP.x, orthocenter.y - SP.y) * cmPerPx
+    : null;
+
+  return {
+    vps, distToSP, distBetween, dotProducts, expectedDot,
+    dCm, orthocentric, maxDev, orthocenter, orthoToSPcm, cmPerPx,
+  };
+}
+
+export function computeViewMetrics(camera) {
+  return {
+    fov: camera.fov,
+    focalLength: camera.focalLength,
+    distanceCm: camera.distanceToScreenCm,
+    distanceM: camera.distanceToScreenCm / 100,
+  };
+}
+
+
+=== FILE: core/camera.js ===
+import { DEFAULTS } from '../config.js'
+
+export class Camera {
+  constructor({ fov = DEFAULTS.fov, horizonOffset = 0, pictureSizeCm = DEFAULTS.pictureSizeCm, viewportWidth = 800, viewportHeight = 600 } = {}) {
+    this.fov = fov;
+    this.horizonOffset = horizonOffset;
+    this.pictureSizeCm = pictureSizeCm;
+    this.viewportWidth = viewportWidth;
+    this.viewportHeight = viewportHeight;
+  }
+
+  setViewport(w, h) {
+    this.viewportWidth = w;
+    this.viewportHeight = h;
+  }
+
+  get pictureRect() {
+    const availW = this.viewportWidth - 16;
+    const availH = this.viewportHeight - DEFAULTS.bottomBarHeightPx - 16;
+    const sq = Math.max(80, Math.min(availW, availH) * 0.98);
+    return {
+      x: this.viewportWidth / 2 - sq / 2,
+      y: (this.viewportHeight - DEFAULTS.bottomBarHeightPx) / 2 - sq / 2,
+      w: sq,
+      h: sq,
+    };
+  }
+
+  get principalPoint() {
+    const r = this.pictureRect;
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  }
+
+  get focalLength() {
+    const r = this.pictureRect;
+    return (r.w / 2) / Math.tan(this.fov * Math.PI / 360);
+  }
+
+  get horizonY() {
+    const r = this.pictureRect;
+    return this.principalPoint.y - this.horizonOffset * r.w;
+  }
+
+  get distanceToScreenCm() {
+    return (this.pictureSizeCm / 2) / Math.tan(this.fov * Math.PI / 360);
+  }
+
+  get R_wc() {
+    const r = this.pictureRect;
+    const d = this.focalLength;
+    const phi = Math.atan(this.horizonOffset * r.w / d);
+    const yaw = Math.PI / 4;
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const cp = Math.cos(phi), sp = Math.sin(phi);
+    return [
+      [cy, 0, -sy],
+      [sy * sp, cp, sp * cy],
+      [sy * cp, -sp, cp * cy],
+    ];
+  }
+
+  screenToWorld(screen, view) {
+    return { x: screen.x - view.x, y: screen.y - view.y };
+  }
+
+  worldToScreen(world, view) {
+    return { x: world.x + view.x, y: world.y + view.y };
+  }
+
+  project3D(p3) {
+    if (p3[2] <= 0.01) return null;
+    const pp = this.principalPoint;
+    const d = this.focalLength;
+    return { x: pp.x + d * p3[0] / p3[2], y: pp.y - d * p3[1] / p3[2] };
+  }
+
+  cameraContext() {
+    const pp = this.principalPoint;
+    return { picCx: pp.x, picCy: pp.y, d: this.focalLength };
+  }
+}
+
+
+=== FILE: core/math.js ===
+// ===== Vec2 =====
+export const v2 = (x, y) => ({ x, y });
+export const add2 = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+export const sub2 = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+export const scale2 = (v, k) => ({ x: v.x * k, y: v.y * k });
+export const len2 = (v) => Math.hypot(v.x, v.y);
+export const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+export const dot2 = (a, b) => a.x * b.x + a.y * b.y;
+export const norm2 = (v) => { const n = len2(v); return n > 1e-9 ? scale2(v, 1 / n) : { x: 0, y: 0 }; };
+
+// ===== Vec3 =====
+export const v3 = (x, y, z) => [x, y, z];
+export const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+export const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+export const scale3 = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+export const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+export const cross3 = (a, b) => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+export const len3 = (a) => Math.hypot(a[0], a[1], a[2]);
+export const norm3 = (a) => { const n = len3(a); return n > 1e-9 ? scale3(a, 1 / n) : [0, 0, 0]; };
+
+export function rotateAroundAxis3(v, axis, angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const d = dot3(v, axis);
+  const cr = cross3(axis, v);
+  return [
+    v[0] * c + cr[0] * s + axis[0] * d * (1 - c),
+    v[1] * c + cr[1] * s + axis[1] * d * (1 - c),
+    v[2] * c + cr[2] * s + axis[2] * d * (1 - c),
+  ];
+}
+
+// ===== Mat3 (row-major) =====
+export const identity3 = () => [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+
+export const mulM3V3 = (M, v) => [
+  M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2],
+  M[1][0] * v[0] + M[1][1] * v[1] + M[1][2] * v[2],
+  M[2][0] * v[0] + M[2][1] * v[1] + M[2][2] * v[2],
+];
+
+export const mulM3M3 = (A, B) => {
+  const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+    C[i][j] = A[i][0] * B[0][j] + A[i][1] * B[1][j] + A[i][2] * B[2][j];
+  return C;
+};
+
+export const rotationMatrixXYZ = (rx, ry, rz) => {
+  const cx = Math.cos(rx), sx = Math.sin(rx);
+  const cy = Math.cos(ry), sy = Math.sin(ry);
+  const cz = Math.cos(rz), sz = Math.sin(rz);
+  return [
+    [cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx],
+    [sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx],
+    [-sy, cy * sx, cy * cx],
+  ];
+};
+
+// ===== Line intersection =====
+export function lineIntersect(p1, p2, p3, p4) {
+  const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+  const den = d1x * d2y - d1y * d2x;
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / den;
+  const u = ((p3.x - p1.x) * d1y - (p3.y - p1.y) * d1x) / den;
+  return { x: p1.x + t * d1x, y: p1.y + t * d1y, t, u };
+}
+
+export function projectOnLine(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-9) return { x: a.x, y: a.y, t: 0 };
+  const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  return { x: a.x + t * dx, y: a.y + t * dy, t };
+}
+
+export function pointLineDistance(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  return Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / len;
+}
+
+// ===== Angles =====
+export const deg2rad = (d) => d * Math.PI / 180;
+export const rad2deg = (r) => r * 180 / Math.PI;
+
+export function lineAngleDeg(d1, d2) {
+  const c = d1.x * d2.x + d1.y * d2.y;
+  const n1 = Math.hypot(d1.x, d1.y), n2 = Math.hypot(d2.x, d2.y);
+  if (n1 < 1e-9 || n2 < 1e-9) return 0;
+  return Math.acos(Math.min(1, Math.abs(c) / (n1 * n2))) * 180 / Math.PI;
+}
+
+export function angleAtVertex(V, A, B) {
+  const ux = A.x - V.x, uy = A.y - V.y;
+  const wx = B.x - V.x, wy = B.y - V.y;
+  const lu = Math.hypot(ux, uy), lw = Math.hypot(wx, wy);
+  if (lu < 1e-6 || lw < 1e-6) return null;
+  return Math.acos(Math.max(-1, Math.min(1, (ux * wx + uy * wy) / (lu * lw)))) * 180 / Math.PI;
+}
+
+export function angleAltitudeSide(V, P, Q, S) {
+  const pqx = Q.x - P.x, pqy = Q.y - P.y;
+  const vsx = S.x - V.x, vsy = S.y - V.y;
+  const altx = -pqy, alty = pqx;
+  const la = Math.hypot(altx, alty), ls = Math.hypot(vsx, vsy);
+  if (la < 1e-6 || ls < 1e-6) return null;
+  return Math.acos(Math.max(0, Math.min(1, Math.abs(altx * vsx + alty * vsy) / (la * ls)))) * 180 / Math.PI;
+}
+
+
+=== FILE: PointerController.js ===
+export class PointerController {
+  constructor({ canvas, state, toolManager }) {
+    this.canvas = canvas;
+    this.state = state;
+    this.toolManager = toolManager;
+    this._activePointer = null;
+  }
+
+  attach() {
+    this.canvas.addEventListener('pointerdown', (e) => this._onDown(e));
+    this.canvas.addEventListener('pointermove', (e) => this._onMove(e));
+    this.canvas.addEventListener('pointerup', (e) => this._onUp(e));
+    this.canvas.addEventListener('pointercancel', () => this._onCancel());
+  }
+
+  _toWorld(e) {
+    return this.state.camera.screenToWorld(
+      { x: e.clientX, y: e.clientY },
+      this.state.view
+    );
+  }
+
+  _onDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    try { this.canvas.setPointerCapture(e.pointerId); } catch {}
+    this._activePointer = e.pointerId;
+    this.toolManager.onPointerDown(this._toWorld(e));
+  }
+
+  _onMove(e) {
+    if (this._activePointer == null) return;
+    this.toolManager.onPointerMove(this._toWorld(e));
+  }
+
+  _onUp(e) {
+    if (this._activePointer == null) return;
+    this._activePointer = null;
+    this.toolManager.onPointerUp(this._toWorld(e));
+  }
+
+  _onCancel() {
+    this._activePointer = null;
+    this.toolManager.onPointerCancel();
+  }
+}
+
+
+=== FILE: main.js ===
+import { Application } from './app.js'
+
+const canvas = document.getElementById('canvas');
+const app = new Application(canvas);
+app.start();
+
+
+=== FILE: panels.js ===
+import { angleAtVertex, rad2deg } from './core/math.js'
+import { computeVPTriangle } from './perspective.js'
+
+function $(id) { return document.getElementById(id); }
+
+function getSelectedBox(state) {
+  return state.document.getSelectedBox();
+}
+
+// ===== Ğ ĞĞ—ĞœĞ•Ğ Ğ«: UI 1..100, Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾ UI*10 =====
+function buildSizeRow(box, label, key, minUI, maxUI) {
+  const realVal = key.split('.').reduce((o, k) => (o == null ? null : o[k]), box);
+  const uiVal = Math.round(realVal / 10);
+  return `<div class="row">
+    <label>${label}</label>
+    <input type="range" data-key="${key}" data-unit="ui" min="${minUI}" max="${maxUI}" step="1" value="${uiVal}">
+    <span class="val" data-val-key="${key}">${uiVal}</span>
+  </div>`;
+}
+
+// ===== Ğ£Ğ“Ğ›Ğ«: UI -36..36, Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾ UI*5Â° =====
+function buildAngleRow(box, label, key) {
+  const realRad = key.split('.').reduce((o, k) => (o == null ? null : o[k]), box);
+  const uiVal = Math.round(rad2deg(realRad) / 5);
+  return `<div class="row">
+    <label>${label}</label>
+    <button class="step-btn" data-step-key="${key}" data-step="-1">âˆ’</button>
+    <input type="range" data-key="${key}" data-unit="ui-deg" min="-36" max="36" step="1" value="${uiVal}">
+    <button class="step-btn" data-step-key="${key}" data-step="1">+</button>
+    <span class="val" data-val-key="${key}">${uiVal * 5}Â°</span>
+  </div>`;
+}
+
+function setByPath(o, path, value) {
+  const ps = path.split('.');
+  let c = o;
+  for (let i = 0; i < ps.length - 1; i++) c = c[ps[i]];
+  c[ps[ps.length - 1]] = value;
+}
+
+class SizePanel {
+  constructor({ state, app }) { this.state = state; this.app = app; this.el = null; this.rowsEl = null; this.btn = null; }
+
+  mount() {
+    this.el = $('panelSize');
+    this.rowsEl = $('sizeRows');
+    this.btn = $('deleteBtn');
+    this.btn.addEventListener('click', () => {
+      const box = getSelectedBox(this.state);
+      if (!box) return;
+      this.state.document.removeBox(box.id);
+      this.app.pushHistory();
+      this.state.emit();
+    });
+  }
+
+  update() {
+    if (this.state.ui.mode !== 'theory') return;
+    const box = getSelectedBox(this.state);
+    if (!box) {
+      this.rowsEl.innerHTML = '<div class="hint">Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ ĞºÑƒĞ±</div>';
+      this.btn.disabled = true;
+      return;
+    }
+    this.btn.disabled = false;
+    const linked = !!box.link;
+    let html = '<div class="sec-h">ĞÑĞ½Ğ¾Ğ²Ğ½Ğ¾Ğ¹</div>';
+    html += buildSizeRow(box, 'Ğ¨', 'size.w', 1, 100);
+    html += buildSizeRow(box, 'Ğ’', 'size.h', 1, 100);
+    html += buildSizeRow(box, 'Ğ“', 'size.dep', 1, 100);
+    if (linked) {
+      html += '<div class="sec-h link">Ğ¡Ğ²ÑĞ·ÑŒ</div>';
+      html += buildSizeRow(box, 'd1', 'link.d1', 0, 200);
+      html += buildSizeRow(box, 'd2', 'link.d2', 0, 200);
+      html += '<div class="sec-h sec">Ğ’Ñ‚Ğ¾Ñ€Ğ¾Ğ¹</div>';
+      html += buildSizeRow(box, 'Ğ¨', 'link.secW', 1, 100);
+      html += buildSizeRow(box, 'Ğ’', 'link.secH', 1, 100);
+      html += buildSizeRow(box, 'Ğ“', 'link.secDep', 1, 100);
+    }
+    this.rowsEl.innerHTML = html;
+    this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
+      inp.addEventListener('input', (e) => {
+        const b = getSelectedBox(this.state);
+        if (!b) return;
+        const uiVal = Number(e.target.value);
+        setByPath(b, e.target.dataset.key, uiVal * 10);
+        const sp = this.rowsEl.querySelector(`[data-val-key="${e.target.dataset.key}"]`);
+        if (sp) sp.textContent = uiVal;
+        this.state.emit();
+      });
+      inp.addEventListener('change', () => this.app.pushHistory());
+    });
+  }
+}
+
+class RotationPanel {
+  constructor({ state, app }) { this.state = state; this.app = app; this.el = null; this.rowsEl = null; }
+
+  mount() {
+    this.el = $('panelRot');
+    this.rowsEl = $('rotRows');
+  }
+
+  update() {
+    if (this.state.ui.mode !== 'theory') return;
+    const box = getSelectedBox(this.state);
+    if (!box) { this.rowsEl.innerHTML = '<div class="hint">â€”</div>'; return; }
+    const linked = !!box.link;
+    let html = '<div class="sec-h">ĞÑĞ½Ğ¾Ğ²Ğ½Ğ¾Ğ¹</div>';
+    html += buildAngleRow(box, 'X', 'rotation.rx');
+    html += buildAngleRow(box, 'Y', 'rotation.ry');
+    html += buildAngleRow(box, 'Z', 'rotation.rz');
+    html += '<button class="reset-btn" id="resetRotBtn">Ğ¡Ğ±Ñ€Ğ¾Ñ</button>';
+    if (linked) {
+      html += '<div class="sec-h link">Ğ¡Ğ²ÑĞ·ÑŒ</div>';
+      html += buildAngleRow(box, 'Î¸', 'link.theta');
+      html += buildAngleRow(box, 'Î±', 'link.alpha');
+      html += buildAngleRow(box, 'Î²', 'link.beta');
+      html += '<button class="reset-btn link" id="resetLinkBtn">Ğ¡Ğ±Ñ€Ğ¾Ñ</button>';
+    }
+    this.rowsEl.innerHTML = html;
+
+    this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
+      inp.addEventListener('input', (e) => {
+        const b = getSelectedBox(this.state);
+        if (!b) return;
+        const uiVal = Number(e.target.value);
+        setByPath(b, e.target.dataset.key, uiVal * 5 * Math.PI / 180);
+        const sp = this.rowsEl.querySelector(`[data-val-key="${e.target.dataset.key}"]`);
+        if (sp) sp.textContent = (uiVal * 5) + 'Â°';
+        this.state.emit();
+      });
+      inp.addEventListener('change', () => this.app.pushHistory());
+    });
+
+    this.rowsEl.querySelectorAll('.step-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const b = getSelectedBox(this.state);
+        if (!b) return;
+        const key = btn.dataset.stepKey;
+        const delta = Number(btn.dataset.step);
+        const curUI = Math.round(key.split('.').reduce((o, k) => o[k], b) * 180 / Math.PI / 5);
+        const newUI = curUI + delta;
+        if (newUI < -36 || newUI > 36) return;
+        setByPath(b, key, newUI * 5 * Math.PI / 180);
+        const sl = this.rowsEl.querySelector(`input[data-key="${key}"]`);
+        const sp = this.rowsEl.querySelector(`[data-val-key="${key}"]`);
+        if (sl) sl.value = newUI;
+        if (sp) sp.textContent = (newUI * 5) + 'Â°';
+        this.state.emit();
+        this.app.pushHistory();
+      });
+    });
+
+    const rr = document.getElementById('resetRotBtn');
+    if (rr) rr.addEventListener('click', () => {
+      const b = getSelectedBox(this.state);
+      if (!b) return;
+      b.rotation.rx = 0; b.rotation.ry = 0; b.rotation.rz = 0;
+      this.state.emit();
+      this.app.pushHistory();
+    });
+    const rl = document.getElementById('resetLinkBtn');
+    if (rl) rl.addEventListener('click', () => {
+      const b = getSelectedBox(this.state);
+      if (!b || !b.link) return;
+      b.link.theta = 60 * Math.PI / 180;
+      b.link.alpha = 0;
+      b.link.beta = 0;
+      this.state.emit();
+      this.app.pushHistory();
+    });
+  }
+}
+
+class OrthoPanel {
+  constructor({ state }) { this.state = state; this.el = null; this.rowsEl = null; }
+  mount() { this.el = $('panelOrtho'); this.rowsEl = $('orthoRows'); }
+
+  update() {
+    if (this.state.ui.mode !== 'theory') return;
+    const box = getSelectedBox(this.state);
+    if (!box) { this.rowsEl.innerHTML = '<div class="hint">â€”</div>'; return; }
+    const info = computeVPTriangle(box, this.state.camera);
+    if (!info) { this.rowsEl.innerHTML = '<div class="hint">â€”</div>'; return; }
+
+    const fA = (v) => (v == null) ? 'â€”' : v.toFixed(1) + 'Â°';
+    let h = '';
+
+    h += '<div class="sec-h ortho">ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ°</div>';
+    if (info.vps.x && info.vps.y && info.vps.z) {
+      h += `<div class="row"><label>SP=H</label><span class="val ${info.orthocentric ? 'good' : 'bad'}">${info.orthocentric ? 'âœ“' : 'âœ—'}</span></div>`;
+      if (info.orthoToSPcm != null && info.orthoToSPcm > 0.01) {
+        const tol = Math.max(0.05, 0.01 * Math.abs(info.dCm));
+        h += `<div class="row"><label>Î”</label><span class="val ${info.orthoToSPcm < tol ? 'good' : 'bad'}">${info.orthoToSPcm.toFixed(2)}</span></div>`;
+      }
+    } else {
+      h += '<div class="row"><span class="val none">Ğ²Ñ‹Ñ€Ğ¾Ğ¶Ğ´ĞµĞ½</span></div>';
+    }
+
+    const A = info.vps.x, B = info.vps.y, C = info.vps.z;
+    if (A && B && C) {
+      const aX = angleAtVertex(A, B, C), aY = angleAtVertex(B, C, A), aZ = angleAtVertex(C, A, B);
+      h += '<div class="sec-h ortho">Ğ£Ğ³Ğ»Ñ‹</div>';
+      h += `<div class="row"><label>âˆ X</label><span class="val">${fA(aX)}</span></div>`;
+      h += `<div class="row"><label>âˆ Y</label><span class="val">${fA(aY)}</span></div>`;
+      h += `<div class="row"><label>âˆ Z</label><span class="val">${fA(aZ)}</span></div>`;
+      if (aX != null && aY != null && aZ != null) {
+        const s = aX + aY + aZ;
+        h += `<div class="row"><label>Î£</label><span class="val ${Math.abs(s - 180) < 0.05 ? 'good' : 'bad'}">${s.toFixed(1)}</span></div>`;
+      }
+    }
+
+    h += '<div class="sec-h ortho">ĞŸĞ°Ñ€Ğ°Ğ¼ĞµÑ‚Ñ€Ñ‹</div>';
+    h += `<div class="row"><label>FOV</label><span class="val">${this.state.camera.fov.toFixed(0)}Â°</span></div>`;
+    h += `<div class="row"><label>d</label><span class="val">${info.dCm.toFixed(2)}</span></div>`;
+    h += `<div class="row"><label>â–¡</label><span class="val">${this.state.camera.pictureSizeCm} ÑĞ¼</span></div>`;
+
+    this.rowsEl.innerHTML = h;
+  }
+}
+
+class SnapPanel {
+  constructor({ state }) { this.state = state; this.el = null; }
+  mount() {
+    this.el = $('panelSnap');
+    this.el.querySelectorAll('.snap-seg[data-target^="snap"]').forEach((seg) => {
+      seg.querySelectorAll('.snap-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          this.state.ui[seg.dataset.target] = btn.dataset.val;
+          seg.querySelectorAll('.snap-btn').forEach((b) => b.classList.toggle('active', b === btn));
+        });
+      });
+    });
+  }
+  update() {
+    this.el.querySelectorAll('.snap-seg[data-target^="snap"]').forEach((seg) => {
+      const target = seg.dataset.target;
+      const val = this.state.ui[target];
+      seg.querySelectorAll('.snap-btn').forEach((b) => b.classList.toggle('active', b.dataset.val === val));
+    });
+  }
+}
+
+class StylePanel {
+  constructor({ state, app }) { this.state = state; this.app = app; this.el = null; }
+  mount() {
+    this.el = $('panelSegStyle');
+    this.el.querySelectorAll('.snap-seg[data-target="segStyle"] .snap-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.val;
+        this.state.ui.defaultSegmentStyle = val;
+        const mode = this.state.ui.mode;
+        const sel = mode === 'exam'
+          ? this.state.document.getSelectedExamSegment()
+          : this.state.document.getSelectedSegment();
+        if (sel) {
+          sel.style = val;
+          this.app.pushHistory();
+        }
+        this.update();
+        this.state.emit();
+      });
+    });
+    $('deleteSegBtn').addEventListener('click', () => {
+      const mode = this.state.ui.mode;
+      const sel = mode === 'exam'
+        ? this.state.document.getSelectedExamSegment()
+        : this.state.document.getSelectedSegment();
+      if (!sel) return;
+      if (mode === 'exam') this.state.document.removeExamSegment(sel.id);
+      else this.state.document.removeSegment(sel.id);
+      this.app.pushHistory();
+      this.state.emit();
+    });
+  }
+  update() {
+    const mode = this.state.ui.mode;
+    const sel = mode === 'exam'
+      ? this.state.document.getSelectedExamSegment()
+      : this.state.document.getSelectedSegment();
+    const info = $('segStyleInfo');
+    if (sel) {
+      info.textContent = 'Ğ’Ñ‹Ğ±Ñ€Ğ°Ğ½: ' + sel.id;
+      info.style.color = '#ffd888';
+    } else {
+      info.textContent = 'ĞĞ¾Ğ²Ñ‹Ğµ Ğ¾Ñ‚Ñ€ĞµĞ·ĞºĞ¸';
+      info.style.color = '';
+    }
+    const cur = sel ? sel.style : this.state.ui.defaultSegmentStyle;
+    this.el.querySelectorAll('.snap-seg[data-target="segStyle"] .snap-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.val === cur);
+    });
+    $('deleteSegBtn').disabled = !sel;
+  }
+}
+
+export function createPanels({ state, app }) {
+  const size = new SizePanel({ state, app });
+  const rotation = new RotationPanel({ state, app });
+  const ortho = new OrthoPanel({ state });
+  const snap = new SnapPanel({ state });
+  const style = new StylePanel({ state, app });
+
+  return {
+    mount() {
+      size.mount();
+      rotation.mount();
+      ortho.mount();
+      snap.mount();
+      style.mount();
+    },
+    update() {
+      const tm = state.ui.tablesMode;
+      const mode = state.ui.mode;
+
+      if (mode === 'practice' || mode === 'exam') {
+        if (tm === 'size' || tm === 'full') snap.update();
+        if (tm === 'rotation' || tm === 'full') style.update();
+      } else {
+        if (tm === 'size' || tm === 'full') size.update();
+        if (tm === 'rotation' || tm === 'full') rotation.update();
+        if (state.ui.showOrthoTable) ortho.update();
+      }
+    },
+  };
+}
+
+
+=== FILE: ui.js ===
+import { createPanels } from './panels.js'
+
+export class UIManager {
+  constructor({ state, app }) {
+    this.state = state;
+    this.app = app;
+    this.panels = createPanels({ state, app });
+    this._els = {};
+  }
+
+  _$(id) { return document.getElementById(id); }
+
+  mount(root) {
+    this._els.fovCell = this._$('fovCell');
+    this._els.horizonRow = this._$('horizonRow');
+    this._els.fovSlider = this._$('fovSlider');
+    this._els.fovValue = this._$('fovValue');
+    this._els.horizonSlider = this._$('horizonSlider');
+    this._els.horizonValue = this._$('horizonValue');
+    this._els.distValue = this._$('distValue');
+    this._els.sizeInput = this._$('sizeInput');
+    this._els.toolIndicator = this._$('toolIndicator');
+    this._els.toolSegContainer = this._$('toolSegContainer');
+    this._els.panelSize = this._$('panelSize');
+    this._els.panelRot = this._$('panelRot');
+    this._els.panelOrtho = this._$('panelOrtho');
+    this._els.panelSnap = this._$('panelSnap');
+    this._els.panelSegStyle = this._$('panelSegStyle');
+    this._els.helpOverlay = this._$('helpOverlay');
+    this._els.undoBtn = this._$('undoBtn');
+
+    this._wireTopBar();
+    this._wireBottomBar();
+    this._wireToolBar();
+    this._wireSliders();
+    this._wireHelp();
+    this._wireModeButtons();
+    this._wireVisButtons();
+    this.panels.mount();
+    this._rebuildTools();
+    this._applyBodyClasses();
+    this._updateBottomBarVisibility();
+    this.update();
+  }
+
+  _wireModeButtons() {
+    document.querySelectorAll('.mode-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.app.setMode(btn.dataset.mode);
+        document.querySelectorAll('.mode-btn').forEach((b) =>
+          b.classList.toggle('active', b.dataset.mode === this.state.ui.mode));
+        this._rebuildTools();
+        this._applyBodyClasses();
+        this._updateBottomBarVisibility();
+      });
+    });
+    document.querySelectorAll('.tb-seg-btn[data-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.state.ui.tablesMode = btn.dataset.mode;
+        document.querySelectorAll('.tb-seg-btn[data-mode]').forEach((b) =>
+          b.classList.toggle('active', b === btn));
+        this.update();
+      });
+    });
+  }
+
+  _wireVisButtons() {
+    document.querySelectorAll('.vis-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.vis;
+        this.state.ui.visibility[key] = !this.state.ui.visibility[key];
+        this.state.emit();
+      });
+    });
+  }
+
+  _wireTopBar() {
+    this._$('helpBtn').addEventListener('click', () => {
+      this._els.helpOverlay.classList.add('show');
+    });
+  }
+
+  _wireHelp() {
+    this._$('helpCloseBtn').addEventListener('click', () => {
+      this._els.helpOverlay.classList.remove('show');
+    });
+    this._els.helpOverlay.addEventListener('click', (e) => {
+      if (e.target === this._els.helpOverlay) this._els.helpOverlay.classList.remove('show');
+    });
+  }
+
+  _wireBottomBar() {
+    const toggle = (key) => () => {
+      this.state.ui[key] = !this.state.ui[key];
+      this.state.emit();
+    };
+    this._$('spBtn').addEventListener('click', toggle('showSP'));
+    this._$('guidesBtn').addEventListener('click', toggle('showGuides'));
+    this._$('guidesSecBtn').addEventListener('click', toggle('showGuidesSec'));
+    this._$('cubeRecoBtn').addEventListener('click', toggle('showRecognized'));
+    this._$('rawGraphBtn').addEventListener('click', toggle('showRawGraph'));
+    this._$('simpGraphBtn').addEventListener('click', toggle('showSimplifiedGraph'));
+    this._$('triBtn').addEventListener('click', () => {
+      this.state.ui.showTri = !this.state.ui.showTri;
+      this.state.emit();
+    });
+    this._$('orthoTableBtn').addEventListener('click', () => {
+      this.state.ui.showOrthoTable = !this.state.ui.showOrthoTable;
+      this.state.emit();
+    });
+    this._$('undoBtn').addEventListener('click', () => this.app.undo());
+    this._$('clearBtn').addEventListener('click', () => this.app.clearAll());
+  }
+
+  _wireToolBar() {
+    this._els.toolSegContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tb-seg-btn');
+      if (!btn) return;
+      this.app.setTool(btn.dataset.tool);
+      this._rebuildTools();
+      this._applyBodyClasses();
+    });
+  }
+
+  _wireSliders() {
+    this._els.fovSlider.addEventListener('input', (e) => {
+      this.state.camera.fov = Number(e.target.value);
+      this.state.emit();
+    });
+    this._els.horizonSlider.addEventListener('input', (e) => {
+      this.state.camera.horizonOffset = Math.max(-1.5, Math.min(1.5, Number(e.target.value) / 100));
+      this.state.emit();
+    });
+    this._els.sizeInput.addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      if (v > 0 && isFinite(v)) {
+        this.state.camera.pictureSizeCm = v;
+        this.state.emit();
+      }
+    });
+  }
+
+  _rebuildTools() {
+    const mode = this.state.ui.mode;
+    const isAnalysis = mode === 'practice' || mode === 'exam';
+    const tools = isAnalysis
+      ? [{ id: 'segment', label: 'ĞÑ‚Ñ€ĞµĞ·' }, { id: 'erase', label: 'Ğ£Ğ´Ğ°Ğ»' }, { id: 'move', label: 'Ğ”Ğ²Ğ¸Ğ¶' }]
+      : [{ id: 'create', label: 'Ğ¡Ğ¾Ğ·Ğ´' }, { id: 'link', label: 'Ğ¡Ğ²ÑĞ·' }, { id: 'move', label: 'Ğ”Ğ²Ğ¸Ğ¶' }];
+    this._els.toolSegContainer.innerHTML = tools.map((t) =>
+      `<button class="tb-seg-btn${t.id === this.state.ui.tool ? ' active' : ''}" data-tool="${t.id}">${t.label}</button>`
+    ).join('');
+  }
+
+  _applyBodyClasses() {
+    document.body.className = '';
+    document.body.classList.add('mode-' + this.state.ui.tool);
+    document.body.classList.add('mode-' + this.state.ui.mode);
+  }
+
+  _updateBottomBarVisibility() {
+    const mode = this.state.ui.mode;
+    const isAnalysis = mode === 'practice' || mode === 'exam';
+    this._$('guidesSecBtn').style.display = isAnalysis ? 'none' : '';
+    this._$('triBtn').style.display = isAnalysis ? 'none' : '';
+    this._$('orthoTableBtn').style.display = isAnalysis ? 'none' : '';
+    this._$('cubeRecoBtn').style.display = isAnalysis ? '' : 'none';
+    this._$('rawGraphBtn').style.display = isAnalysis ? '' : 'none';
+    this._$('simpGraphBtn').style.display = isAnalysis ? '' : 'none';
+  }
+
+  _updateCameraControls() {
+    const isPractice = this.state.ui.mode === 'practice';
+    this._els.fovCell.style.display = isPractice ? 'none' : '';
+    this._els.horizonRow.style.display = isPractice ? 'none' : '';
+  }
+
+  update() {
+    const st = this.state;
+    const cam = st.camera;
+
+    this._els.fovSlider.value = cam.fov;
+    this._els.fovValue.textContent = cam.fov + 'Â°';
+    this._els.horizonSlider.value = Math.round(cam.horizonOffset * 100);
+    this._els.horizonValue.textContent = cam.horizonOffset.toFixed(2);
+    this._els.distValue.textContent = (cam.distanceToScreenCm / 100).toFixed(2) + 'Ğ¼';
+
+    this._els.undoBtn.disabled = !this.app.history.canUndo;
+
+    this._els.toolIndicator.className = 'tool-indicator';
+    const toolName = st.ui.tool;
+    if (toolName === 'move') { this._els.toolIndicator.textContent = 'Ğ”Ğ²Ğ¸Ğ¶'; this._els.toolIndicator.classList.add('move'); }
+    else if (toolName === 'segment') { this._els.toolIndicator.textContent = 'ĞÑ‚Ñ€ĞµĞ·Ğ¾Ğº'; this._els.toolIndicator.classList.add('segment'); }
+    else if (toolName === 'erase') { this._els.toolIndicator.textContent = 'Ğ£Ğ´Ğ°Ğ»'; this._els.toolIndicator.classList.add('erase'); }
+    else if (toolName === 'link') { this._els.toolIndicator.textContent = 'Ğ¡Ğ²ÑĞ·ĞºĞ°'; this._els.toolIndicator.classList.add('link'); }
+    else { this._els.toolIndicator.textContent = 'ĞšÑƒĞ±'; }
+
+    const setActive = (id, on) => this._$(id).classList.toggle('active', on);
+    setActive('spBtn', st.ui.showSP);
+    setActive('guidesBtn', st.ui.showGuides);
+    setActive('guidesSecBtn', st.ui.showGuidesSec);
+    setActive('triBtn', st.ui.showTri);
+    setActive('orthoTableBtn', st.ui.showOrthoTable);
+    setActive('cubeRecoBtn', st.ui.showRecognized);
+    setActive('rawGraphBtn', st.ui.showRawGraph);
+    setActive('simpGraphBtn', st.ui.showSimplifiedGraph);
+
+    document.querySelectorAll('.mode-btn').forEach((b) =>
+      b.classList.toggle('active', b.dataset.mode === st.ui.mode));
+    document.querySelectorAll('.vis-btn').forEach((b) =>
+      b.classList.toggle('active', st.ui.visibility[b.dataset.vis]));
+    document.querySelectorAll('.tb-seg-btn[data-mode]').forEach((b) =>
+      b.classList.toggle('active', b.dataset.mode === st.ui.tablesMode));
+
+    this._updatePanelVisibility();
+    this._updateCameraControls();
+    this.panels.update();
+  }
+
+  _updatePanelVisibility() {
+    const mode = this.state.ui.mode;
+    const tm = this.state.ui.tablesMode;
+    const isAnalysis = mode === 'practice' || mode === 'exam';
+
+    if (isAnalysis) {
+      this._els.panelSize.style.display = 'none';
+      this._els.panelRot.style.display = 'none';
+      this._els.panelOrtho.style.display = 'none';
+      this._els.panelSnap.style.display = (tm === 'size' || tm === 'full') ? '' : 'none';
+      this._els.panelSegStyle.style.display = (tm === 'rotation' || tm === 'full') ? '' : 'none';
+    } else {
+      this._els.panelSnap.style.display = 'none';
+      this._els.panelSegStyle.style.display = 'none';
+      this._els.panelSize.style.display = (tm === 'size' || tm === 'full') ? '' : 'none';
+      this._els.panelRot.style.display = (tm === 'rotation' || tm === 'full') ? '' : 'none';
+      this._els.panelOrtho.style.display = this.state.ui.showOrthoTable ? '' : 'none';
+    }
+  }
+}
+
+
+=== FILE: README.md ===
+# Cube Drawing Trainer
+
+Ğ’ĞµĞ±-Ğ¿Ñ€Ğ¸Ğ»Ğ¾Ğ¶ĞµĞ½Ğ¸Ğµ Ğ´Ğ»Ñ Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ¸ Ğ³Ğ»Ğ°Ğ·Ğ¾Ğ¼ĞµÑ€Ğ° Ğ² Ğ¿ĞµÑ€ÑĞ¿ĞµĞºÑ‚Ğ¸Ğ²Ğµ. Ğ Ğ¸ÑÑƒĞµÑ‚Ğµ ĞºÑƒĞ± Â«Ğ½Ğ° Ğ³Ğ»Ğ°Ğ·Â» â€” Ğ¿Ñ€Ğ¾Ğ³Ñ€Ğ°Ğ¼Ğ¼Ğ° Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€ÑƒĞµÑ‚ ĞµĞ³Ğ¾ Ñ Ñ‚Ğ¾Ñ‡ĞºĞ¸ Ğ·Ñ€ĞµĞ½Ğ¸Ñ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ğ¹ Ğ³ĞµĞ¾Ğ¼ĞµÑ‚Ñ€Ğ¸Ğ¸ Ğ¸ Ğ¾Ñ†ĞµĞ½Ğ¸Ğ²Ğ°ĞµÑ‚ Ñ‚Ğ¾Ñ‡Ğ½Ğ¾ÑÑ‚ÑŒ Ğ¿Ğ¾ Ğ±ĞµĞ·Ñ€Ğ°Ğ·Ğ¼ĞµÑ€Ğ½Ñ‹Ğ¼ Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ°Ğ¼.
+
+## Ğ¡Ğ¾Ğ´ĞµÑ€Ğ¶Ğ°Ğ½Ğ¸Ğµ
+
+- [Ğ‘Ñ‹ÑÑ‚Ñ€Ñ‹Ğ¹ ÑÑ‚Ğ°Ñ€Ñ‚](#Ğ±Ñ‹ÑÑ‚Ñ€Ñ‹Ğ¹-ÑÑ‚Ğ°Ñ€Ñ‚)
+- [Ğ§Ñ‚Ğ¾ Ğ´ĞµĞ»Ğ°ĞµÑ‚](#Ñ‡Ñ‚Ğ¾-Ğ´ĞµĞ»Ğ°ĞµÑ‚)
+- [ĞšĞ°Ğº Ğ¿Ğ¾ÑÑ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ ĞºÑƒĞ±](#ĞºĞ°Ğº-Ğ¿Ğ¾ÑÑ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ-ĞºÑƒĞ±)
+- [Ğ˜Ğ½Ñ‚ĞµÑ€Ñ„ĞµĞ¹Ñ](#Ğ¸Ğ½Ñ‚ĞµÑ€Ñ„ĞµĞ¹Ñ)
+- [Ğ ĞµĞ¶Ğ¸Ğ¼Ñ‹ Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‹](#Ñ€ĞµĞ¶Ğ¸Ğ¼Ñ‹-Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‹)
+- [ĞœĞµÑ‚Ñ€Ğ¸ĞºĞ¸ Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ğ¸](#Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ¸-Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ğ¸)
+- [ĞĞ²Ñ‚Ğ¾-Ğ¿Ğ¾Ğ´Ğ±Ğ¾Ñ€ FOV](#Ğ°Ğ²Ñ‚Ğ¾-Ğ¿Ğ¾Ğ´Ğ±Ğ¾Ñ€-fov)
+- [Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ĞºÑƒĞ± (Ñ„Ğ¸Ğ¾Ğ»ĞµÑ‚Ğ¾Ğ²Ñ‹Ğ¹)](#Ğ¸Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹-ĞºÑƒĞ±-Ñ„Ğ¸Ğ¾Ğ»ĞµÑ‚Ğ¾Ğ²Ñ‹Ğ¹)
+- [ĞÑ€Ñ…Ğ¸Ñ‚ĞµĞºÑ‚ÑƒÑ€Ğ°](#Ğ°Ñ€Ñ…Ğ¸Ñ‚ĞµĞºÑ‚ÑƒÑ€Ğ°)
+- [ĞœĞ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºĞ°](#Ğ¼Ğ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºĞ°)
+- [ĞĞ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ñ](#Ğ¾Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ñ)
+- [ĞšĞ°Ğº Ğ°Ğ´Ğ°Ğ¿Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ğ¿Ğ¾Ğ´ ÑĞµĞ±Ñ](#ĞºĞ°Ğº-Ğ°Ğ´Ğ°Ğ¿Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ-Ğ¿Ğ¾Ğ´-ÑĞµĞ±Ñ)
+
+
+
+## Ğ‘Ñ‹ÑÑ‚Ñ€Ñ‹Ğ¹ ÑÑ‚Ğ°Ñ€Ñ‚
+
+https://kiselkovd.github.io/Cube-Drawing-Trainer/
+
+## Ğ§Ñ‚Ğ¾ Ğ´ĞµĞ»Ğ°ĞµÑ‚
+
+ĞŸĞ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ Ñ€Ğ¸ÑÑƒĞµÑ‚ **ĞºÑƒĞ± Ğ² Ğ¿ĞµÑ€ÑĞ¿ĞµĞºÑ‚Ğ¸Ğ²Ğµ Ğ´Ğ²ÑƒĞ¼Ñ Ñ‚Ğ¾Ñ‡ĞºĞ°Ğ¼Ğ¸ ÑÑ…Ğ¾Ğ´Ğ°** (Ğ¾Ğ±Ñ‹Ñ‡Ğ½Ñ‹Ğ¹ ÑĞ¿Ğ¾ÑĞ¾Ğ± Ğ¿Ğ¾ÑÑ‚Ñ€Ğ¾ĞµĞ½Ğ¸Ñ ĞºÑƒĞ±Ğ° Ğ½Ğ° Ğ±ÑƒĞ¼Ğ°Ğ³Ğµ), Ğ° Ğ¿Ñ€Ğ¾Ğ³Ñ€Ğ°Ğ¼Ğ¼Ğ°:
+
+- Ğ½Ğ°Ñ…Ğ¾Ğ´Ğ¸Ñ‚ Ñ‚Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ° Ğ¸Ğ· Ğ½Ğ°Ñ€Ğ¸ÑĞ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ñ… Ñ€Ñ‘Ğ±ĞµÑ€;
+- Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ÑĞµÑ‚, Ğ»ĞµĞ¶Ğ°Ñ‚ Ğ»Ğ¸ Ğ¾Ğ½Ğ¸ Ğ½Ğ° Ğ¾Ğ´Ğ½Ğ¾Ğ¹ Ğ²Ñ‹ÑĞ¾Ñ‚Ğµ (Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚Ğµ);
+- Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ÑĞµÑ‚, Ğ¿ĞµÑ€Ğ¿ĞµĞ½Ğ´Ğ¸ĞºÑƒĞ»ÑÑ€Ğ½Ñ‹ Ğ»Ğ¸ Ğ½Ğ°Ğ¿Ñ€Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ñ Ğ² 3D;
+- Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ÑĞµÑ‚, ÑĞ¾Ğ¾Ñ‚Ğ²ĞµÑ‚ÑÑ‚Ğ²ÑƒĞµÑ‚ Ğ»Ğ¸ Ğ³Ğ»ÑƒĞ±Ğ¸Ğ½Ğ° ĞºÑƒĞ±Ğ° Ğ²Ñ‹ÑĞ¾Ñ‚Ğµ;
+- Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ÑĞµÑ‚, Ğ¿Ğ¾Ğ¿Ğ°Ğ´Ğ°ÑÑ‚ Ğ»Ğ¸ Ğ²ĞµÑ€Ñ…Ğ½Ğ¸Ğµ Ñ€Ñ‘Ğ±Ñ€Ğ° Ğ² Ğ½ÑƒĞ¶Ğ½Ñ‹Ğµ Ñ‚Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ°.
+
+Ğ’ÑÑ‘ â€” **Ğ¸Ğ· ÑĞ°Ğ¼Ğ¾Ğ³Ğ¾ Ñ€Ğ¸ÑÑƒĞ½ĞºĞ°**, Ğ±ĞµĞ· Ğ·Ğ½Ğ°Ğ½Ğ¸Ñ Â«Ğ¿Ñ€Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ğ¾Ğ³Ğ¾ Ğ¾Ñ‚Ğ²ĞµÑ‚Ğ°Â». ĞŸĞ»ÑÑ Ğ¾Ñ‚Ğ¾Ğ±Ñ€Ğ°Ğ¶Ğ°ĞµÑ‚ **Ğ¸Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ĞºÑƒĞ±**, ĞºĞ¾Ñ‚Ğ¾Ñ€Ñ‹Ğ¹ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ğ»ÑÑ Ğ±Ñ‹ Ğ¿Ñ€Ğ¸ Ñ‚ĞµĞºÑƒÑ‰Ğ¸Ñ… Ğ¿Ğ°Ñ€Ğ°Ğ¼ĞµÑ‚Ñ€Ğ°Ñ… ĞºĞ°Ğ¼ĞµÑ€Ñ‹ â€” Ğ´Ğ»Ñ Ğ½Ğ°Ğ³Ğ»ÑĞ´Ğ½Ğ¾Ğ³Ğ¾ ÑÑ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ñ.
+
+
+
+## ĞšĞ°Ğº Ğ¿Ğ¾ÑÑ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ ĞºÑƒĞ±
+
+Ğ§ĞµÑ‚Ñ‹Ñ€Ğµ ÑÑ‚Ğ°Ğ¿Ğ°, ÑÑ‚Ñ€Ğ¾Ğ³Ğ°Ñ Ğ¿Ğ¾ÑĞ»ĞµĞ´Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ğ¾ÑÑ‚ÑŒ. Ğ˜Ğ½ÑÑ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚ Ğ¿ĞµÑ€ĞµĞºĞ»ÑÑ‡Ğ°ĞµÑ‚ÑÑ **Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑĞºĞ¸**.
+
+### 1. Ğ¡Ñ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğµ Ñ€ĞµĞ±Ñ€Ğ¾
+
+Ğ¢Ğ°Ğ¿Ğ½Ğ¸Ñ‚Ğµ Ğ¸ Ğ¿Ğ¾Ñ‚ÑĞ½Ğ¸Ñ‚Ğµ **Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ğ¾** (ÑĞ²ĞµÑ€Ñ…Ñƒ Ğ²Ğ½Ğ¸Ğ· Ğ¸Ğ»Ğ¸ ÑĞ½Ğ¸Ğ·Ñƒ Ğ²Ğ²ĞµÑ€Ñ…). Ğ­Ñ‚Ğ¾ Ğ¿ĞµÑ€ĞµĞ´Ğ½ĞµĞµ Ñ€ĞµĞ±Ñ€Ğ¾ ĞºÑƒĞ±Ğ°.
+
+- Ğ¡Ğ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ÑÑ Ğ¾Ğ´Ğ½Ğ¾ ÑÑ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğµ Ñ€ĞµĞ±Ñ€Ğ¾. Ğ‘Ğ¾Ğ»ÑŒÑˆĞµ Ğ½ĞµĞ»ÑŒĞ·Ñ.
+- Ğ¦Ğ²ĞµÑ‚: **Ğ·ĞµĞ»Ñ‘Ğ½Ñ‹Ğ¹**.
+
+### 2. Ğ‘Ğ¾ĞºĞ¾Ğ²Ñ‹Ğµ Ñ€Ñ‘Ğ±Ñ€Ğ° Ã—4
+
+Ğ˜Ğ· Ğ²ĞµÑ€Ñ…Ğ½ĞµĞ¹ Ğ¸ Ğ½Ğ¸Ğ¶Ğ½ĞµĞ¹ Ğ²ĞµÑ€ÑˆĞ¸Ğ½Ñ‹ ÑÑ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ñ€ĞµĞ±Ñ€Ğ° Ğ¿Ñ€Ğ¾Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ **Ğ¿Ğ¾ 2 Ñ€ĞµĞ±Ñ€Ğ° Ğ² ÑÑ‚Ğ¾Ñ€Ğ¾Ğ½Ñ‹**. Ğ’ÑĞµĞ³Ğ¾ 4.
+
+- Ğ¡Ğ½Ğ°Ğ¿ Ğº ÑÑƒÑ‰ĞµÑÑ‚Ğ²ÑƒÑÑ‰Ğ¸Ğ¼ Ñ‚Ğ¾Ñ‡ĞºĞ°Ğ¼ Ñ€Ğ°Ğ±Ğ¾Ñ‚Ğ°ĞµÑ‚, ĞµÑĞ»Ğ¸ Ñ€ĞµĞ±Ñ€Ğ¾ Ğ½Ğ°Ñ‡Ğ°Ñ‚Ğ¾ **Ñ Ğ¿ÑƒÑÑ‚Ğ¾Ğ³Ğ¾ Ğ¼ĞµÑÑ‚Ğ°** â€” Ñ‚Ğ°Ğº ÑƒĞ´Ğ¾Ğ±Ğ½Ğ¾ Ñ†ĞµĞ¿Ğ»ÑÑ‚ÑŒÑÑ Ğ·Ğ° Ğ²ĞµÑ€ÑˆĞ¸Ğ½Ñ‹.
+- Ğ¦Ğ²ĞµÑ‚: **Ğ±ĞµĞ»Ñ‹Ğ¹**.
+- ĞŸĞ¾ÑĞ»Ğµ 4-Ğ³Ğ¾ Ñ€ĞµĞ±Ñ€Ğ° Ğ¸Ğ½ÑÑ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚ Ğ¿ĞµÑ€ĞµĞºĞ»ÑÑ‡Ğ°ĞµÑ‚ÑÑ Ğ½Ğ° Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»Ğ¸.
+
+### 3. Ğ’ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ñ‹Ğµ Ñ€Ñ‘Ğ±Ñ€Ğ° Ã—2
+
+Ğ¢Ğ°Ğ¿Ğ½Ğ¸Ñ‚Ğµ Ğ² Ğ»ÑĞ±Ğ¾Ğ¼ Ğ¼ĞµÑÑ‚Ğµ Ğ¸ Ğ¿Ğ¾Ñ‚ÑĞ½Ğ¸Ñ‚Ğµ Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ğ¾. Ğ¡Ğ´ĞµĞ»Ğ°Ğ¹Ñ‚Ğµ Ñ‚Ğ°Ğº 2 Ñ€Ğ°Ğ·Ğ° Ğ´Ğ»Ñ Ğ·Ğ°Ğ´Ğ½Ğ¸Ñ… Ñ€Ñ‘Ğ±ĞµÑ€ ĞºÑƒĞ±Ğ°.
+
+- **ĞĞµ Ğ¿Ñ€Ğ¸Ğ»Ğ¸Ğ¿Ğ°ÑÑ‚ Ğº ÑĞ¾ÑĞµĞ´Ğ½Ğ¸Ğ¼ Ñ‚Ğ¾Ñ‡ĞºĞ°Ğ¼** (ĞºÑ€Ğ¾Ğ¼Ğµ Ñ‚Ğ¾Ñ‡Ğ½Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ğ¿Ğ°Ğ´Ğ°Ğ½Ğ¸Ñ < 4px).
+- Ğ¦Ğ²ĞµÑ‚: **Ğ¾Ñ€Ğ°Ğ½Ğ¶ĞµĞ²Ñ‹Ğ¹**.
+- ĞŸĞ¾ÑĞ»Ğµ 2-Ğ¹ Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»Ğ¸ **Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑĞºĞ¸ ÑĞ¾Ğ·Ğ´Ğ°ÑÑ‚ÑÑ Ğ³Ğ¾Ğ»ÑƒĞ±Ñ‹Ğµ Ñ‚Ğ¾Ñ‡ĞºĞ¸** Ğ¿ĞµÑ€ĞµÑĞµÑ‡ĞµĞ½Ğ¸Ñ ĞºĞ°Ğ¶Ğ´Ğ¾Ğ¹ Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»Ğ¸ Ñ ĞºĞ°Ğ¶Ğ´Ñ‹Ğ¼ Ğ±Ğ¾ĞºĞ¾Ğ²Ñ‹Ğ¼ Ñ€ĞµĞ±Ñ€Ğ¾Ğ¼ â€” ÑÑ‚Ğ¾ Ğ²ĞµÑ€ÑˆĞ¸Ğ½Ñ‹ Ğ²ĞµÑ€Ñ…Ğ½ĞµĞ¹/Ğ½Ğ¸Ğ¶Ğ½ĞµĞ¹ Ğ³Ñ€Ğ°Ğ½ĞµĞ¹.
+
+### 4. Ğ’ĞµÑ€Ñ…Ğ½Ğ¸Ğµ Ñ€Ñ‘Ğ±Ñ€Ğ° Ã—2
+
+Ğ¡Ğ¾ĞµĞ´Ğ¸Ğ½Ğ¸Ñ‚Ğµ Ğ³Ğ¾Ğ»ÑƒĞ±Ñ‹Ğµ Ñ‚Ğ¾Ñ‡ĞºĞ¸. ĞŸĞ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑÑ Ğ²ĞµÑ€Ñ…Ğ½ÑÑ Ğ³Ñ€Ğ°Ğ½ÑŒ ĞºÑƒĞ±Ğ°.
+
+- Ğ’ÑĞµĞ³Ğ´Ğ° Ğ¸Ñ‰ÑƒÑ‚ Ğ±Ğ»Ğ¸Ğ¶Ğ°Ğ¹ÑˆÑƒÑ Ğ³Ğ¾Ğ»ÑƒĞ±ÑƒÑ Ñ‚Ğ¾Ñ‡ĞºÑƒ.
+- Ğ¦Ğ²ĞµÑ‚: **Ğ³Ğ¾Ğ»ÑƒĞ±Ğ¾Ğ¹**.
+- ĞŸĞ¾ÑĞ»Ğµ 2-Ğ³Ğ¾ Ñ€ĞµĞ±Ñ€Ğ° â€” Â«Ğ“Ğ¾Ñ‚Ğ¾Ğ²Ğ¾ âœ“Â».
+
+### Ğ¦Ğ²ĞµÑ‚Ğ° Ñ‚Ğ¾Ñ‡ĞµĞº
+
+| Ğ¦Ğ²ĞµÑ‚ | Ğ—Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ |
+|||
+| Ğ¡Ğ¸Ğ½Ğ¸Ğ¹ | Ğ¡Ğ²Ğ¾Ğ±Ğ¾Ğ´Ğ½Ğ°Ñ Ñ‚Ğ¾Ñ‡ĞºĞ° |
+| ĞÑ€Ğ°Ğ½Ğ¶ĞµĞ²Ñ‹Ğ¹ | Ğ¢Ğ¾Ñ‡ĞºĞ° Ğ½Ğ° Ğ»Ğ¸Ğ½Ğ¸Ğ¸ (`onLine`, Ğ¿Ğ¾ĞºĞ° Ğ½Ğµ Ğ¸ÑĞ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµÑ‚ÑÑ) |
+| Ğ“Ğ¾Ğ»ÑƒĞ±Ğ¾Ğ¹ | ĞĞ²Ñ‚Ğ¾-Ğ¿ĞµÑ€ĞµÑĞµÑ‡ĞµĞ½Ğ¸Ğµ Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»Ğ¸ Ñ Ğ±Ğ¾ĞºĞ¾Ğ²Ñ‹Ğ¼ Ñ€ĞµĞ±Ñ€Ğ¾Ğ¼ |
+| Ğ–Ñ‘Ğ»Ñ‚Ñ‹Ğ¹ | ĞĞºÑ‚Ğ¸Ğ²Ğ½Ğ°Ñ Ğ¿Ñ€Ğ¸ Ñ€ĞµĞ´Ğ°ĞºÑ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğ¸ |
+| ĞÑ€Ğ°Ğ½Ğ¶ĞµĞ²Ñ‹Ğ¹ Ñ ĞºĞ¾Ğ»ÑŒÑ†Ğ¾Ğ¼ | ĞĞºÑ‚Ğ¸Ğ²Ğ½Ğ°Ñ, Ğ½Ğ¾ Ñ Ğ·Ğ°Ğ±Ğ»Ğ¾ĞºĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğ¼ X (Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ğ°Ñ) |
+
+
+
+## Ğ˜Ğ½Ñ‚ĞµÑ€Ñ„ĞµĞ¹Ñ
+
+### Ğ›ĞµĞ²Ğ°Ñ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ° (ÑĞ²ĞµÑ€Ñ…Ñƒ Ğ²Ğ½Ğ¸Ğ·)
+
+Ğ¢Ğ°Ğ±Ğ»Ğ¸Ñ†Ñ‹ ÑĞ¾ ÑÑ‚Ğ°Ñ‚Ğ¸ÑÑ‚Ğ¸ĞºĞ¾Ğ¹. Ğ’Ğ¸Ğ´Ğ¸Ğ¼Ğ¾ÑÑ‚ÑŒ Ğ·Ğ°Ğ²Ğ¸ÑĞ¸Ñ‚ Ğ¾Ñ‚ Ñ€ĞµĞ¶Ğ¸Ğ¼Ğ°:
+
+| Ğ ĞµĞ¶Ğ¸Ğ¼ | Ğ§Ñ‚Ğ¾ Ğ²Ğ¸Ğ´Ğ½Ğ¾ |
+|||
+| `âˆ…` (ÑĞºÑ€Ñ‹Ñ‚ÑŒ) | Ğ½Ğ¸Ñ‡ĞµĞ³Ğ¾ |
+| `Ğ’Ğ°Ğ»` (Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ñ) | Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ¸ Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ğ¸ |
+| `Ğ’ÑÑ‘` (Ğ¿Ğ¾Ğ»Ğ½Ğ°Ñ) | ÑƒĞ³Ğ»Ñ‹ Ñ€Ñ‘Ğ±ĞµÑ€, Ñ‚Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ°, Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»Ğ¸, Ğ²ĞµÑ€Ñ…Ğ½Ğ¸Ğµ Ñ€Ñ‘Ğ±Ñ€Ğ°, Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ñ |
+
+**Ğ’ÑĞµ Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ñ‹ ÑĞºÑ€Ñ‹Ğ²Ğ°ÑÑ‚ÑÑ, Ğ¿Ğ¾ĞºĞ° Ğ²ĞµĞ´Ñ‘Ñ‚ÑÑ Ğ»Ğ¸Ğ½Ğ¸Ñ.**
+
+### ĞŸÑ€Ğ°Ğ²Ñ‹Ğ¹ Ğ²ĞµÑ€Ñ…Ğ½Ğ¸Ğ¹ ÑƒĞ³Ğ¾Ğ»
+
+Ğ”Ğ²Ğ° Ğ½ĞµĞ·Ğ°Ğ²Ğ¸ÑĞ¸Ğ¼Ñ‹Ñ… Ğ¿Ñ€ÑĞ¼Ğ¾ÑƒĞ³Ğ¾Ğ»ÑŒĞ½Ğ¸ĞºĞ° **Ğ¾Ğ´Ğ¸Ğ½Ğ°ĞºĞ¾Ğ²Ğ¾Ğ¹ ÑˆĞ¸Ñ€Ğ¸Ğ½Ñ‹**:
+
+1. **Ğ¡Ñ‚Ğ°Ñ‚Ğ¸ÑÑ‚Ğ¸ĞºĞ°** â€” Ğ¿ĞµÑ€ĞµĞºĞ»ÑÑ‡Ğ°Ñ‚ĞµĞ»ÑŒ `âˆ… / Ğ’Ğ°Ğ» / Ğ’ÑÑ‘` + ĞºÑ€ÑƒĞ³Ğ»Ğ°Ñ ĞºĞ½Ğ¾Ğ¿ĞºĞ° `?` (ÑĞ¿Ñ€Ğ°Ğ²ĞºĞ°).
+2. **Ğ¢ĞµĞºÑƒÑ‰Ğ¸Ğ¹ Ğ¸Ğ½ÑÑ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚** â€” Ğ½Ğ°Ğ´Ğ¿Ğ¸ÑÑŒ (Ğ½Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€, Â«Ğ‘Ğ¾ĞºĞ¾Ğ²Ğ¾Ğµ Ñ€ĞµĞ±Ñ€Ğ¾ (2/4)Â») Ğ¸ Ğ¿ĞµÑ€ĞµĞºĞ»ÑÑ‡Ğ°Ñ‚ĞµĞ»ÑŒ `Ğ¡Ñ‚Ğ´ / Ğ ĞµĞ´ / ĞŸĞ°Ğ½`.
+
+### ĞĞ¸Ğ¶Ğ½ÑÑ Ğ¿Ğ°Ğ½ĞµĞ»ÑŒ
+
+Ğ¢Ñ€Ğ¸ Ğ³Ñ€ÑƒĞ¿Ğ¿Ñ‹ Ñ ÑƒĞ²ĞµĞ»Ğ¸Ñ‡ĞµĞ½Ğ½Ñ‹Ğ¼ Ğ¾Ñ‚ÑÑ‚ÑƒĞ¿Ğ¾Ğ¼ Ğ¼ĞµĞ¶Ğ´Ñƒ Ğ½Ğ¸Ğ¼Ğ¸ (Ğ´Ğ»Ñ ÑƒĞ´Ğ¾Ğ±ÑÑ‚Ğ²Ğ° Ğ±Ğ¾Ğ»ÑŒÑˆĞ¸Ğ¼ Ğ¿Ğ°Ğ»ÑŒÑ†ĞµĞ¼):
+
+| Ğ“Ñ€ÑƒĞ¿Ğ¿Ğ° | ĞšĞ½Ğ¾Ğ¿ĞºĞ¸ |
+|||
+| Ğ¡Ğ»ĞµĞ²Ğ° | ĞŸĞ¾Ğ»Ğ·ÑƒĞ½Ğ¾Ğº FOV + Ñ‚ĞµĞºÑƒÑ‰ĞµĞµ Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ + ĞºĞ½Ğ¾Ğ¿ĞºĞ° `A` (Ğ°Ğ²Ñ‚Ğ¾-Ğ¿Ğ¾Ğ´Ğ±Ğ¾Ñ€) |
+| Ğ¦ĞµĞ½Ñ‚Ñ€ | `Ğ“Ğ¾Ñ€` (Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚) Â· `ĞšÑƒĞ±` (Ğ¸Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ĞºÑƒĞ±) Â· `ĞšÑ€` (Ğ¾ĞºÑ€ÑƒĞ¶Ğ½Ğ¾ÑÑ‚Ğ¸) |
+| Ğ¡Ğ¿Ñ€Ğ°Ğ²Ğ° | `â†¶` (Ğ¾Ñ‚Ğ¼ĞµĞ½Ğ°) Â· `â†º` (ÑĞ±Ñ€Ğ¾Ñ) |
+
+
+
+## Ğ ĞµĞ¶Ğ¸Ğ¼Ñ‹ Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‹
+
+ĞŸĞµÑ€ĞµĞºĞ»ÑÑ‡Ğ°Ñ‚ĞµĞ»ÑŒ `Ğ¡Ñ‚Ğ´ / Ğ ĞµĞ´ / ĞŸĞ°Ğ½` Ğ² Ğ¿Ñ€Ğ°Ğ²Ğ¾Ğ¼ Ğ²ĞµÑ€Ñ…Ğ½ĞµĞ¼ Ğ±Ğ»Ğ¾ĞºĞµ.
+
+### Ğ¡Ñ‚Ğ´ (ÑÑ‚Ğ°Ğ½Ğ´Ğ°Ñ€Ñ‚)
+
+Ğ Ğ¸ÑĞ¾Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ¿Ğ¾ Ñ‡ĞµÑ‚Ñ‹Ñ€Ñ‘Ğ¼ ÑÑ‚Ğ°Ğ¿Ğ°Ğ¼. Ğ˜Ğ½ÑÑ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚ Ğ¿ĞµÑ€ĞµĞºĞ»ÑÑ‡Ğ°ĞµÑ‚ÑÑ Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑĞºĞ¸.
+
+### Ğ ĞµĞ´ (Ñ€ĞµĞ´Ğ°ĞºÑ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ)
+
+Ğ¢Ğ°ÑĞºĞ°Ğ¹Ñ‚Ğµ **Ñ‚Ğ¾Ñ‡ĞºĞ¸**:
+
+- Ğ¢Ğ¾Ñ‡ĞºĞ¸ Ğ½Ğ° Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ñ‹Ñ… Ñ€Ñ‘Ğ±Ñ€Ğ°Ñ… (ÑÑ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğµ, Ğ·Ğ°Ğ´Ğ½Ğ¸Ğµ) â€” Ğ´Ğ²Ğ¸Ğ³Ğ°ÑÑ‚ÑÑ **Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ¿Ğ¾ Y** (X Ğ·Ğ°Ğ±Ğ»Ğ¾ĞºĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½, Ğ¾Ñ‚Ğ¾Ğ±Ñ€Ğ°Ğ¶Ğ°ĞµÑ‚ÑÑ ĞºĞ¾Ğ»ÑŒÑ†Ğ¾Ğ¼).
+- ĞÑÑ‚Ğ°Ğ»ÑŒĞ½Ñ‹Ğµ Ñ‚Ğ¾Ñ‡ĞºĞ¸ â€” ÑĞ²Ğ¾Ğ±Ğ¾Ğ´Ğ½Ğ¾ Ğ¿Ğ¾ Ğ¾Ğ±ĞµĞ¸Ğ¼ Ğ¾ÑÑĞ¼.
+
+ĞŸĞ¾ÑĞ»Ğµ Ğ¾Ñ‚Ğ¿ÑƒÑĞºĞ°Ğ½Ğ¸Ñ Ğ²ÑĞµ Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ¸ Ğ¸ Ñ‚Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ° Ğ¿ĞµÑ€ĞµÑÑ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ÑÑ‚ÑÑ.
+
+### ĞŸĞ°Ğ½ (Ğ¿ĞµÑ€ĞµĞ¼ĞµÑ‰ĞµĞ½Ğ¸Ğµ)
+
+Ğ¡Ğ´Ğ²Ğ¸Ğ³ Ğ²ÑĞµĞ³Ğ¾ Ñ…Ğ¾Ğ»ÑÑ‚Ğ° Ğ¿Ğ°Ğ»ÑŒÑ†ĞµĞ¼. **ĞĞµ Ğ¸ÑĞºĞ°Ğ¶Ğ°ĞµÑ‚ Ğ¼Ğ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºÑƒ**: `state.view` Ğ¿Ñ€Ğ¸Ğ¼ĞµĞ½ÑĞµÑ‚ÑÑ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ½Ğ° Ñ€ĞµĞ½Ğ´ĞµÑ€Ğµ, Ğ° Ğ²ÑĞµ Ğ²Ñ‹Ñ‡Ğ¸ÑĞ»ĞµĞ½Ğ¸Ñ Ğ¸Ğ´ÑƒÑ‚ Ğ² world-ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ğ°Ñ…, ĞºĞ¾Ñ‚Ğ¾Ñ€Ñ‹Ğµ Ğ½Ğµ Ğ¼ĞµĞ½ÑÑÑ‚ÑÑ. FOV, Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ñ, Ñ‚Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ° â€” Ğ¾ÑÑ‚Ğ°ÑÑ‚ÑÑ Ñ‚Ğµ Ğ¶Ğµ.
+
+
+
+## ĞœĞµÑ‚Ñ€Ğ¸ĞºĞ¸ Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ğ¸
+
+Ğ’ÑĞµ â€” **Ğ² Ğ¿Ñ€Ğ¾Ñ†ĞµĞ½Ñ‚Ğ°Ñ… Ğ¾Ñ‚ `h_f`** (Ğ²Ñ‹ÑĞ¾Ñ‚Ñ‹ ÑÑ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ñ€ĞµĞ±Ñ€Ğ°). Ğ­Ñ‚Ğ¾ ĞºÑ€Ğ¸Ñ‚Ğ¸Ñ‡Ğ½Ğ¾: 10px Ğ¿Ñ€Ğ¸ `h_f=50` Ğ¸ Ğ¿Ñ€Ğ¸ `h_f=500` â€” Ñ€Ğ°Ğ·Ğ½Ñ‹Ğµ Ğ²ĞµÑ‰Ğ¸.
+
+| ĞœĞµÑ‚Ñ€Ğ¸ĞºĞ° | Ğ§Ñ‚Ğ¾ Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ÑĞµÑ‚ | Ğ˜Ğ´ĞµĞ°Ğ» |
+||||
+| **Ğ“Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚** | ĞĞ±Ğµ Ñ‚Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ° Ğ½Ğ° Ğ¾Ğ´Ğ½Ğ¾Ğ¹ Ğ²Ñ‹ÑĞ¾Ñ‚Ğµ | 0% |
+| **Ğ Ñ‘Ğ±Ñ€Ğ° âŠ¥** | Ğ“Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚Ğ°Ğ»ÑŒĞ½Ñ‹Ğµ Ğ½Ğ°Ğ¿Ñ€Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ñ Ğ¿ĞµÑ€Ğ¿ĞµĞ½Ğ´Ğ¸ĞºÑƒĞ»ÑÑ€Ğ½Ñ‹ Ğ² 3D (Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ² Ñ€ÑƒÑ‡Ğ½Ğ¾Ğ¼ FOV) | 0Â° |
+| **Ğ‘Ğ¾Ğº. Ñ€Ñ‘Ğ±Ñ€Ğ°** | ĞšĞ¾Ğ½Ñ†Ñ‹ Ğ±Ğ¾ĞºĞ¾Ğ²Ñ‹Ñ… Ñ€Ñ‘Ğ±ĞµÑ€ Ğ»ĞµĞ¶Ğ°Ñ‚ Ğ½Ğ° Ğ¿Ñ€ÑĞ¼Ñ‹Ñ… Â«Ğ²ĞµÑ€ÑˆĞ¸Ğ½Ğ° â†’ ÑĞ²Ğ¾Ñ Ñ‚Ğ¾Ñ‡ĞºĞ° ÑÑ…Ğ¾Ğ´Ğ°Â» | 0% |
+| **ĞŸÑ€Ğ¾Ğ¿Ğ¾Ñ€Ñ†Ğ¸Ğ¸** | ĞšÑƒĞ±, Ğ° Ğ½Ğµ ÑÑ‚Ğ¾Ğ»Ğ±: Ğ³Ğ»ÑƒĞ±Ğ¸Ğ½Ğ° ÑĞ¾Ğ¾Ñ‚Ğ²ĞµÑ‚ÑÑ‚Ğ²ÑƒĞµÑ‚ Ğ²Ñ‹ÑĞ¾Ñ‚Ğµ | 0% |
+| **Ğ’ĞµÑ€Ñ…. Ñ€Ñ‘Ğ±Ñ€Ğ°** | Ğ’ĞµÑ€Ñ…Ğ½Ğ¸Ğµ Ñ€Ñ‘Ğ±Ñ€Ğ° ÑƒÑ…Ğ¾Ğ´ÑÑ‚ Ğ² Ğ¾Ğ´Ğ½Ñƒ Ğ¸Ğ· Ñ‚Ğ¾Ñ‡ĞµĞº ÑÑ…Ğ¾Ğ´Ğ° | 0% |
+
+Ğ¦Ğ²ĞµÑ‚Ğ¾Ğ²Ğ°Ñ Ğ¸Ğ½Ğ´Ğ¸ĞºĞ°Ñ†Ğ¸Ñ:
+- `âœ“` Ğ·ĞµĞ»Ñ‘Ğ½Ñ‹Ğ¹ â€” `Îµ â‰¤ Ğ¿Ğ¾Ñ€Ğ¾Ğ³/2`
+- `âš ` Ğ¶Ñ‘Ğ»Ñ‚Ñ‹Ğ¹ â€” `Îµ â‰¤ Ğ¿Ğ¾Ñ€Ğ¾Ğ³`
+- `âœ—` ĞºÑ€Ğ°ÑĞ½Ñ‹Ğ¹ â€” `Îµ > Ğ¿Ğ¾Ñ€Ğ¾Ğ³`
+
+ĞŸĞ¾Ñ€Ğ¾Ğ³Ğ¸: 5% Ğ´Ğ»Ñ Ğ±Ğ¾Ğ»ÑŒÑˆĞ¸Ğ½ÑÑ‚Ğ²Ğ°, 10% Ğ´Ğ»Ñ Ğ¿Ñ€Ğ¾Ğ¿Ğ¾Ñ€Ñ†Ğ¸Ğ¹, 5Â° Ğ´Ğ»Ñ ÑƒĞ³Ğ»Ğ¾Ğ².
+
+
+
+## ĞĞ²Ñ‚Ğ¾-Ğ¿Ğ¾Ğ´Ğ±Ğ¾Ñ€ FOV
+
+**ĞšĞ»ÑÑ‡ĞµĞ²Ğ°Ñ Ğ¸Ğ´ĞµÑ:** Ğ´Ğ»Ñ Ğ»ÑĞ±Ğ¾Ğ³Ğ¾ Ğ¿Ñ€Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ğ¾Ğ³Ğ¾ ĞºÑƒĞ±Ğ° Ğ¿Ñ€Ğ¸ Ğ»ÑĞ±Ğ¾Ğ¼ Ğ¿Ğ¾Ğ²Ğ¾Ñ€Ğ¾Ñ‚Ğµ Ğ²Ñ‹Ğ¿Ğ¾Ğ»Ğ½ÑĞµÑ‚ÑÑ Ğ¸Ğ½Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚:
+
+```
+(x_L âˆ’ cx) Â· (x_R âˆ’ cx) = âˆ’dÂ²
+```
+
+Ğ³Ğ´Ğµ `x_L, x_R` â€” ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ñ‹ Ñ‚Ğ¾Ñ‡ĞµĞº ÑÑ…Ğ¾Ğ´Ğ°, `cx` â€” Ñ†ĞµĞ½Ñ‚Ñ€ ÑĞºÑ€Ğ°Ğ½Ğ°, `d` â€” Ñ„Ğ¾ĞºÑƒÑ Ğ² Ğ¿Ğ¸ĞºÑĞµĞ»ÑÑ…. ĞÑ‚ÑÑĞ´Ğ°:
+
+```
+d = âˆš((cx âˆ’ x_L)(x_R âˆ’ cx))
+fov = 2Â·arctan((W/2) / d)
+```
+
+Ğ¢Ğ¾ ĞµÑÑ‚ÑŒ **Ğ¿Ğ¾ Ğ´Ğ²ÑƒĞ¼ Ğ½Ğ°Ñ€Ğ¸ÑĞ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğ¼ Ñ‚Ğ¾Ñ‡ĞºĞ°Ğ¼ ÑÑ…Ğ¾Ğ´Ğ°** Ğ¼Ğ¾Ğ¶Ğ½Ğ¾ Ğ¾Ğ´Ğ½Ğ¾Ğ·Ğ½Ğ°Ñ‡Ğ½Ğ¾ Ğ²Ğ¾ÑÑÑ‚Ğ°Ğ½Ğ¾Ğ²Ğ¸Ñ‚ÑŒ FOV, Ğ¿Ñ€Ğ¸ ĞºĞ¾Ñ‚Ğ¾Ñ€Ğ¾Ğ¼ Ñ€Ğ¸ÑÑƒĞ½Ğ¾Ğº Â«Ğ¿Ñ€Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¿Ğ¾ Ğ¿ĞµÑ€Ğ¿ĞµĞ½Ğ´Ğ¸ĞºÑƒĞ»ÑÑ€Ğ½Ğ¾ÑÑ‚Ğ¸Â».
+
+**ĞšĞ°Ğº Ñ€Ğ°Ğ±Ğ¾Ñ‚Ğ°ĞµÑ‚ ĞºĞ½Ğ¾Ğ¿ĞºĞ° `A`:**
+
+| Ğ¡Ğ¾ÑÑ‚Ğ¾ÑĞ½Ğ¸Ğµ | ĞŸĞ¾Ğ»Ğ·ÑƒĞ½Ğ¾Ğº | Ğ˜Ğ½Ğ´Ğ¸ĞºĞ°Ñ‚Ğ¾Ñ€ |
+||||
+| ĞĞ²Ñ‚Ğ¾ Ğ²ĞºĞ»ÑÑ‡Ñ‘Ğ½, VPs ĞµÑ‰Ñ‘ Ğ½Ğµ Ğ³Ğ¾Ñ‚Ğ¾Ğ²Ñ‹ | Ğ—Ğ°Ğ±Ğ»Ğ¾ĞºĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½ | `60Â°?` (Ğ¶Ñ‘Ğ»Ñ‚Ñ‹Ğ¹) |
+| ĞĞ²Ñ‚Ğ¾ Ğ²ĞºĞ»ÑÑ‡Ñ‘Ğ½, VPs Ğ²Ñ‹Ñ‡Ğ¸ÑĞ»ĞµĞ½Ñ‹ | Ğ—Ğ°Ğ±Ğ»Ğ¾ĞºĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½, Ğ¿Ğ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ°Ğ²Ñ‚Ğ¾-Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ | `65Â°` (Ğ·ĞµĞ»Ñ‘Ğ½Ñ‹Ğ¹) |
+| ĞĞ²Ñ‚Ğ¾ Ğ²Ñ‹ĞºĞ»ÑÑ‡ĞµĞ½ | Ğ Ğ°Ğ·Ğ±Ğ»Ğ¾ĞºĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½, Ñ€ÑƒÑ‡Ğ½Ğ¾Ğ¹ | `60Â°` (ÑĞµÑ€Ñ‹Ğ¹) |
+
+ĞŸĞ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ Ğ°Ğ²Ñ‚Ğ¾ **Ğ²ĞºĞ»ÑÑ‡Ñ‘Ğ½**.
+
+
+
+## Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ĞºÑƒĞ± (Ñ„Ğ¸Ğ¾Ğ»ĞµÑ‚Ğ¾Ğ²Ñ‹Ğ¹)
+
+ĞšĞ½Ğ¾Ğ¿ĞºĞ° `ĞšÑƒĞ±` Ğ² Ğ½Ğ¸Ğ¶Ğ½ĞµĞ¹ Ğ¿Ğ°Ğ½ĞµĞ»Ğ¸ Ğ¿Ğ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ **ĞºÑƒĞ±, ĞºĞ¾Ñ‚Ğ¾Ñ€Ñ‹Ğ¹ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ğ»ÑÑ Ğ±Ñ‹** Ğ¿Ñ€Ğ¸ Ñ‚ĞµĞºÑƒÑ‰Ğ¸Ñ… Ğ¿Ğ°Ñ€Ğ°Ğ¼ĞµÑ‚Ñ€Ğ°Ñ… ĞºĞ°Ğ¼ĞµÑ€Ñ‹ (FOV, Ğ¿Ğ¾Ğ²Ğ¾Ñ€Ğ¾Ñ‚ Ïˆ, Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚ `cy`) Ğ¸ ÑÑ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğ¼ Ñ€ĞµĞ±Ñ€Ğµ ĞºĞ°Ğº Ğ¿ĞµÑ€ĞµĞ´Ğ½ĞµĞ¹ Ğ³Ñ€Ğ°Ğ½Ğ¸.
+
+**ĞĞ»Ğ³Ğ¾Ñ€Ğ¸Ñ‚Ğ¼:**
+1. Ğ’Ğ·ÑÑ‚ÑŒ Ïˆ Ğ¸Ğ· Ğ¾Ğ´Ğ½Ğ¾Ğ¹ Ğ¸Ğ· Ñ‚Ğ¾Ñ‡ĞµĞº ÑÑ…Ğ¾Ğ´Ğ°: `Ïˆ = atan((cx âˆ’ x_L) / d)`.
+2. Ğ—Ğ°Ğ´Ğ°Ñ‚ÑŒ 3D-ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ñ‹ Ğ¿ĞµÑ€ĞµĞ´Ğ½ĞµĞ³Ğ¾ Ğ½Ğ¸Ğ¶Ğ½ĞµĞ³Ğ¾ ÑƒĞ³Ğ»Ğ°: `Xâ‚€ = V_bot.x âˆ’ cx`, `Yâ‚€ = cy âˆ’ V_bot.y`, `Zâ‚€ = d`.
+3. ĞŸĞ¾ÑÑ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ 8 Ğ²ĞµÑ€ÑˆĞ¸Ğ½ ĞºÑƒĞ±Ğ° Ñ Ñ€ĞµĞ±Ñ€Ğ¾Ğ¼ `s = h_f Â· Zâ‚€ / d`, Ğ¿Ğ¾Ğ²Ñ‘Ñ€Ğ½ÑƒÑ‚Ğ¾Ğ³Ğ¾ Ğ½Ğ° Ïˆ.
+4. Ğ¡Ğ¿Ñ€Ğ¾ĞµÑ†Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ğ¾Ğ±Ñ€Ğ°Ñ‚Ğ½Ğ¾: `x_s = cx + dÂ·X/Z`, `y_s = cy âˆ’ dÂ·Y/Z`.
+
+Ğ•ÑĞ»Ğ¸ Ğ²Ğ°Ñˆ Ñ€Ğ¸ÑÑƒĞ½Ğ¾Ğº ÑĞ¸Ğ»ÑŒĞ½Ğ¾ Ñ€Ğ°ÑÑ…Ğ¾Ğ´Ğ¸Ñ‚ÑÑ Ñ Ñ„Ğ¸Ğ¾Ğ»ĞµÑ‚Ğ¾Ğ²Ñ‹Ğ¼ â€” Ğ»Ğ¸Ğ±Ğ¾ Ñ€Ğ¸ÑÑƒĞ½Ğ¾Ğº Ğ½ĞµÑ‚Ğ¾Ñ‡ĞµĞ½, Ğ»Ğ¸Ğ±Ğ¾ FOV Ğ½Ğµ Ñ‚Ğ¾Ñ‚ (Ğ¿ĞµÑ€ĞµĞºĞ»ÑÑ‡Ğ¸Ñ‚Ğµ `A` Ğ² Ñ€ÑƒÑ‡Ğ½Ğ¾Ğ¹ Ñ€ĞµĞ¶Ğ¸Ğ¼ Ğ¸ Ğ¿Ğ¾Ğ´ĞºÑ€ÑƒÑ‚Ğ¸Ñ‚Ğµ).
+
+
+
+## ĞÑ€Ñ…Ğ¸Ñ‚ĞµĞºÑ‚ÑƒÑ€Ğ°
+
+### Ğ¡Ğ»Ğ¾Ğ¸
+
+```
+UI (DOM) â”€â”€â”€â”€â”€â”€â–º Interaction (pointer events) â”€â”€â”€â”€â”€â”€â–º state (Ğ¼ÑƒÑ‚Ğ°Ñ‚Ğ¾Ñ€)
+                                                        â”‚
+                                                        â–¼
+                              Math core â—„â”€â”€â”€â”€ state â”€â”€â”€â”€â–º Renderer (canvas)
+```
+
+- **UI** â€” ĞºĞ½Ğ¾Ğ¿ĞºĞ¸, Ğ¿Ğ¾Ğ»Ğ·ÑƒĞ½ĞºĞ¸, Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ñ‹. Ğ£Ğ¿Ñ€Ğ°Ğ²Ğ»ÑĞµÑ‚ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ `state.*` Ğ¸ Ğ²Ñ‹Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ `render()`.
+- **Interaction** â€” `pointerDown / Move / Up / Cancel`. ĞœÑƒÑ‚Ğ¸Ñ€ÑƒĞµÑ‚ `state` (Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ÑĞµÑ‚ Ñ‚Ğ¾Ñ‡ĞºĞ¸/Ñ€Ñ‘Ğ±Ñ€Ğ°, ÑĞ´Ğ²Ğ¸Ğ³Ğ°ĞµÑ‚ view, Ñ‚Ğ°Ñ‰Ğ¸Ñ‚ Ñ‚Ğ¾Ñ‡ĞºĞ¸).
+- **State** â€” ĞµĞ´Ğ¸Ğ½ÑÑ‚Ğ²ĞµĞ½Ğ½Ñ‹Ğ¹ Ğ¸ÑÑ‚Ğ¾Ñ‡Ğ½Ğ¸Ğº Ğ¿Ñ€Ğ°Ğ²Ğ´Ñ‹. ĞœĞ¾Ğ´ĞµĞ»ÑŒ: `points + segments` Ñ Ñ€Ğ¾Ğ»ÑĞ¼Ğ¸.
+- **Math core** â€” Ñ‡Ğ¸ÑÑ‚Ñ‹Ğµ Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ğ¸: `computeVanishingPoints`, `computeValidation`, `getFovInfo`, `drawIdealCube`. ĞĞµ Ğ·Ğ½Ğ°ÑÑ‚ Ğ¾ DOM.
+- **Renderer** â€” ĞµĞ´Ğ¸Ğ½ÑÑ‚Ğ²ĞµĞ½Ğ½Ğ°Ñ Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ñ `render()`. Ğ§Ğ¸Ñ‚Ğ°ĞµÑ‚ `state`, Ñ€Ğ¸ÑÑƒĞµÑ‚ Ğ½Ğ° canvas, ÑĞ¸Ğ½Ñ…Ñ€Ğ¾Ğ½Ğ¸Ğ·Ğ¸Ñ€ÑƒĞµÑ‚ DOM.
+
+### ĞœĞ¾Ğ´ĞµĞ»ÑŒ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…
+
+```js
+// Ğ¢Ğ¾Ñ‡ĞºĞ°
+{ id: 'p1', x, y, kind: 'free' | 'intersection' | 'onLine' }
+
+// Ğ ĞµĞ±Ñ€Ğ¾
+{
+  id: 's1', aId, bId,
+  vertical: bool,
+  role: 'start' | 'side' | 'vertical' | 'top'
+}
+```
+
+**Ğ Ğ¾Ğ»ÑŒ** â€” ĞºĞ»ÑÑ‡ĞµĞ²Ğ°Ñ Ğ°Ğ±ÑÑ‚Ñ€Ğ°ĞºÑ†Ğ¸Ñ. ĞĞ¿Ñ€ĞµĞ´ĞµĞ»ÑĞµÑ‚:
+- ĞºĞ°Ğº Ñ€ĞµĞ±Ñ€Ğ¾ ÑƒÑ‡Ğ°ÑÑ‚Ğ²ÑƒĞµÑ‚ Ğ² Ğ¼Ğ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºĞµ (`start` â€” Ñ€ĞµÑ„ĞµÑ€ĞµĞ½Ñ, `side` â€” Ğ´Ğ°Ñ‘Ñ‚ VP, `vertical` â€” Ğ³Ğ»ÑƒĞ±Ğ¸Ğ½Ñƒ, `top` â€” Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ÑĞµÑ‚ÑÑ);
+- Ñ†Ğ²ĞµÑ‚ Ñ€Ñ‘Ğ±ĞµÑ€ Ğ¿Ñ€Ğ¸ Ñ€ĞµĞ½Ğ´ĞµÑ€Ğµ;
+- Ğ»Ğ¸Ğ¼Ğ¸Ñ‚ (`side â‰¤ 4`, `vertical â‰¤ 2`, `top â‰¤ 2`).
+
+**ĞœĞ¾Ğ´ĞµĞ»ÑŒ Ğ¼Ğ¸Ğ½Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ğ°:** Ğ²ÑÑ‘ Ğ¾ÑÑ‚Ğ°Ğ»ÑŒĞ½Ğ¾Ğµ â€” Ğ¿Ñ€Ğ¾Ğ¸Ğ·Ğ²Ğ¾Ğ´Ğ½Ñ‹Ğµ Ğ¾Ñ‚ Ğ½ĞµÑ‘. Ğ¢Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ°, Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚, Ğ¸Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ĞºÑƒĞ±, Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ¸ â€” ÑÑ‡Ğ¸Ñ‚Ğ°ÑÑ‚ÑÑ Ğ½Ğ° Ğ»ĞµÑ‚Ñƒ.
+
+### Ğ¡Ğ¸ÑÑ‚ĞµĞ¼Ñ‹ ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚
+
+| Ğ¡Ğ¸ÑÑ‚ĞµĞ¼Ğ° | Ğ“Ğ´Ğµ Ğ¶Ğ¸Ğ²Ñ‘Ñ‚ | Ğ§Ñ‚Ğ¾ Ğ·Ğ½Ğ°Ñ‡Ğ¸Ñ‚ |
+||||
+| **World** | `point.x, point.y` | ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ñ‹ Ñ„Ğ¸Ğ³ÑƒÑ€Ñ‹ |
+| **Screen** | `ctx` ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ñ‹ | Ğ¿Ğ¸ĞºÑĞµĞ»Ğ¸ Ñ…Ğ¾Ğ»ÑÑ‚Ğ° |
+| **View** | `state.view` | ÑĞ´Ğ²Ğ¸Ğ³ Ğ¿Ğ°Ğ½Ğ° |
+
+`state.points` Ğ²ÑĞµĞ³Ğ´Ğ° Ğ² world-ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ğ°Ñ…. Ğ ĞµĞ½Ğ´ĞµÑ€ Ğ´ĞµĞ»Ğ°ĞµÑ‚ `ctx.translate(view.x, view.y)`. `pointerDown/Move/Up` Ğ´ĞµĞ»Ğ°ÑÑ‚ Ğ¾Ğ±Ñ€Ğ°Ñ‚Ğ½Ğ¾Ğµ `screenToWorld`.
+
+**Ğ˜Ğ·-Ğ·Ğ° ÑÑ‚Ğ¾Ğ³Ğ¾ Ğ¿Ğ°Ğ½Ğ¾Ñ€Ğ°Ğ¼Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ½Ğµ Ğ¸ÑĞºĞ°Ğ¶Ğ°ĞµÑ‚ Ğ¼Ğ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºÑƒ.**
+
+### `baseW` / `baseH`
+
+Â«Ğ—Ğ°Ğ¼Ğ¾Ñ€Ğ¾Ğ¶ĞµĞ½Ğ½Ñ‹ĞµÂ» Ñ€Ğ°Ğ·Ğ¼ĞµÑ€Ñ‹ Ğ¾ĞºĞ½Ğ°. Ğ—Ğ°Ğ¿Ğ¾Ğ¼Ğ¸Ğ½Ğ°ÑÑ‚ÑÑ Ğ² Ğ¼Ğ¾Ğ¼ĞµĞ½Ñ‚ Ğ¿Ğ¾ÑÑ‚Ğ°Ğ½Ğ¾Ğ²ĞºĞ¸ Ğ¿ĞµÑ€Ğ²Ğ¾Ğ¹ Ñ‚Ğ¾Ñ‡ĞºĞ¸. Ğ’ÑĞµ Ğ²Ñ‹Ñ‡Ğ¸ÑĞ»ĞµĞ½Ğ¸Ñ FOV, `d`, `cx` Ğ¸Ğ´ÑƒÑ‚ Ğ¾Ñ‚ Ğ½Ğ¸Ñ…. Ğ ĞµÑĞ°Ğ¹Ğ· Ğ¾ĞºĞ½Ğ° Ğ½Ğµ Ğ¼ĞµĞ½ÑĞµÑ‚ Ğ¼Ğ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºÑƒ â€” Ğ¼ĞµĞ½ÑĞµÑ‚ÑÑ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ñ‚Ğ¾, ĞºĞ°Ğº Ğ¾Ğ±Ñ€ĞµĞ·Ğ°Ğ½ Ñ…Ğ¾Ğ»ÑÑ‚.
+
+### Ğ˜Ğ½ÑÑ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚ â€” Ğ¿Ñ€Ğ¾Ğ¸Ğ·Ğ²Ğ¾Ğ´Ğ½Ğ°Ñ ÑĞ¾ÑÑ‚Ğ¾ÑĞ½Ğ¸Ñ
+
+```js
+if (!start)             tool = 'vertical';
+else if (side < 4)      tool = 'segment';
+else if (vertical < 2)  tool = 'verticalEdge';
+else if (top < 2)       tool = 'top';
+else                    tool = 'top';  // Ğ³Ğ¾Ñ‚Ğ¾Ğ²Ğ¾
+```
+
+ĞĞ¸ĞºĞ°ĞºĞ¾Ğ³Ğ¾ Ñ€ÑƒÑ‡Ğ½Ğ¾Ğ³Ğ¾ Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ°. Undo Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑĞºĞ¸ Ğ¿Ğ¾Ğ´Ğ±Ğ¸Ñ€Ğ°ĞµÑ‚ Ğ½ÑƒĞ¶Ğ½Ñ‹Ğ¹ Ğ¸Ğ½ÑÑ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚ Ñ‡ĞµÑ€ĞµĞ· `syncToolWithState()`.
+
+### Undo / Redo
+
+Ğ¡Ğ½Ğ°Ğ¿ÑˆĞ¾Ñ‚Ñ‹ **Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾** `points` Ğ¸ `segments`:
+```js
+JSON.stringify({ points: state.points, segments: state.segments })
+```
+
+- 50 ÑˆĞ°Ğ³Ğ¾Ğ² (ring buffer).
+- `saveState()` â€” Ğ² ĞºĞ¾Ğ½Ñ†Ğµ ĞºĞ°Ğ¶Ğ´Ğ¾Ğ³Ğ¾ Ğ»Ğ¾Ğ³Ğ¸Ñ‡ĞµÑĞºĞ¾Ğ³Ğ¾ Ğ´ĞµĞ¹ÑÑ‚Ğ²Ğ¸Ñ.
+- ĞÑ‚ĞºĞ°Ñ‚Ñ‹Ğ²Ğ°ÑÑ‚ÑÑ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ñ€Ğ¸ÑÑƒĞ½Ğ¾Ğº. `fov`, `view`, Ñ€ĞµĞ¶Ğ¸Ğ¼Ñ‹ â€” ÑÑ‚Ğ¾ Â«Ğ¿Ğ°Ñ€Ğ°Ğ¼ĞµÑ‚Ñ€Ñ‹ Ğ¿Ñ€Ğ¾ÑĞ¼Ğ¾Ñ‚Ñ€Ğ°Â», Ğ° Ğ½Ğµ Â«Ñ€Ğ¸ÑÑƒĞ½Ğ¾ĞºÂ».
+
+### ĞŸÑ€Ğ°Ğ²Ğ¸Ğ»Ğ° ÑĞ½Ğ°Ğ¿Ğ°
+
+| Ğ˜Ğ½ÑÑ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚ | ĞĞ°Ñ‡Ğ°Ğ»Ğ¾ Ñ Ğ¿ÑƒÑÑ‚Ğ¾Ğ³Ğ¾ Ğ¼ĞµÑÑ‚Ğ° | ĞĞ°Ñ‡Ğ°Ğ»Ğ¾ Ñ Ñ‚Ğ¾Ñ‡ĞºĞ¸ |
+||||
+| Ğ‘Ğ¾ĞºĞ¾Ğ²Ğ¾Ğµ Ñ€ĞµĞ±Ñ€Ğ¾ | ÑĞ½Ğ°Ğ¿ Ğº ÑÑƒÑ‰ĞµÑÑ‚Ğ²ÑƒÑÑ‰Ğ¸Ğ¼ (22px) | Ğ±ĞµĞ· ÑĞ½Ğ°Ğ¿Ğ° |
+| Ğ’ĞµÑ€Ñ…Ğ½ĞµĞµ Ñ€ĞµĞ±Ñ€Ğ¾ | **Ğ²ÑĞµĞ³Ğ´Ğ°** ÑĞ½Ğ°Ğ¿ Ğº Ğ±Ğ»Ğ¸Ğ¶Ğ°Ğ¹ÑˆĞµĞ¹ Ñ‚Ğ¾Ñ‡ĞºĞµ (22px) | Ñ‚Ğ¾ Ğ¶Ğµ |
+| Ğ’ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒ | ÑĞ½Ğ°Ğ¿ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ñ‚Ğ¾Ñ‡Ğ½Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ğ¿Ğ°Ğ´Ğ°Ğ½Ğ¸Ñ (< 4px) | Ñ‚Ğ¾ Ğ¶Ğµ |
+
+ĞÑĞ¸Ğ¼Ğ¼ĞµÑ‚Ñ€Ğ¸Ñ ÑĞ´ĞµĞ»Ğ°Ğ½Ğ° ÑĞ¿ĞµÑ†Ğ¸Ğ°Ğ»ÑŒĞ½Ğ¾: Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒ Ğ½Ğµ Ğ´Ğ¾Ğ»Ğ¶Ğ½Ğ° Â«Ğ¿Ñ€Ğ¸Ğ»Ğ¸Ğ¿Ğ°Ñ‚ÑŒÂ» Ğº ÑĞ»ÑƒÑ‡Ğ°Ğ¹Ğ½Ñ‹Ğ¼ ÑĞ¾ÑĞµĞ´Ğ½Ğ¸Ğ¼ Ñ‚Ğ¾Ñ‡ĞºĞ°Ğ¼.
+
+
+
+## ĞœĞ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºĞ°
+
+### ĞœĞ¾Ğ´ĞµĞ»ÑŒ ĞºĞ°Ğ¼ĞµÑ€Ñ‹
+
+Ğ£Ğ¿Ñ€Ğ¾Ñ‰Ñ‘Ğ½Ğ½Ğ°Ñ, Ğ±ĞµĞ· Ğ½Ğ°ĞºĞ»Ğ¾Ğ½Ğ°/ĞºÑ€ĞµĞ½Ğ°:
+
+```
+cx = baseW / 2
+cy = ÑÑ€ĞµĞ´Ğ½ĞµĞµ VP.y  (Ğ¸Ğ»Ğ¸ Ğ¾Ğ´Ğ½Ğ° VP, Ğ¸Ğ»Ğ¸ baseH/2)
+d  = (baseW/2) / tan(fov/2)
+```
+
+ĞŸÑ€Ğ¾ĞµĞºÑ†Ğ¸Ñ `(X, Y, Z)`:
+```
+x_s = cx + dÂ·X/Z
+y_s = cy âˆ’ dÂ·Y/Z
+```
+
+### Ğ¢Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ° (3 ÑĞ»ÑƒÑ‡Ğ°Ñ)
+
+`computeVanishingPoints()` Ñ€Ğ°Ğ·Ğ±Ğ¸Ñ€Ğ°ĞµÑ‚:
+
+1. **2/2** â€” Ğ¿Ğ¾ 2 Ñ€ĞµĞ±Ñ€Ğ° Ñ ĞºĞ°Ğ¶Ğ´Ğ¾Ğ¹ ÑÑ‚Ğ¾Ñ€Ğ¾Ğ½Ñ‹. Ğ¡Ñ‚Ğ°Ğ½Ğ´Ğ°Ñ€Ñ‚Ğ½Ğ¾Ğµ Ğ¿ĞµÑ€ĞµÑĞµÑ‡ĞµĞ½Ğ¸Ğµ Ğ¿Ğ°Ñ€.
+2. **4/0 Ğ¸Ğ»Ğ¸ 0/4** â€” Ğ²ÑĞµ Ñ€Ñ‘Ğ±Ñ€Ğ° ÑƒÑˆĞ»Ğ¸ Ğ² Ğ¾Ğ´Ğ½Ñƒ ÑÑ‚Ğ¾Ñ€Ğ¾Ğ½Ñƒ (ĞºÑƒĞ± Ñƒ ĞºÑ€Ğ°Ñ ÑĞºÑ€Ğ°Ğ½Ğ°). Ğ£Ğ¼Ğ½Ğ¾Ğµ Ğ¿Ğ°Ñ€Ğ¾ÑĞ¾Ñ‡ĞµÑ‚Ğ°Ğ½Ğ¸Ğµ: Ğ¿Ñ€Ğ¾Ğ±ÑƒĞµĞ¼ Ğ¾Ğ±Ğ° Ñ€Ğ°Ğ·Ğ±Ğ¸ĞµĞ½Ğ¸Ñ `(top_i, bot_j)`, Ğ²Ñ‹Ğ±Ğ¸Ñ€Ğ°ĞµĞ¼ Ñ‚Ğ¾, Ğ³Ğ´Ğµ Ğ¾Ğ±Ğ° VP Â«Ğ²Ğ¿ĞµÑ€ĞµĞ´Ğ¸Â» ÑĞ²Ğ¾Ğ¸Ñ… Ñ€Ñ‘Ğ±ĞµÑ€ (dirScore = 4/4) Ğ¸ Ñ Ğ¼Ğ¸Ğ½Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ğ¾Ğ¹ Ñ€Ğ°Ğ·Ğ½Ğ¸Ñ†ĞµĞ¹ `y`.
+3. **3/1** â€” Ğ¿Ğ°Ñ€Ğ¾ÑĞ¾Ñ‡ĞµÑ‚Ğ°Ğ½Ğ¸Ğµ Ğ½ĞµĞ¾Ğ´Ğ½Ğ¾Ğ·Ğ½Ğ°Ñ‡Ğ½Ğ¾. VP Ğ½Ğµ Ğ²Ñ‹Ñ‡Ğ¸ÑĞ»ÑÑÑ‚ÑÑ, Ğ² Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğµ Ğ¿Ğ¾Ğ´ÑĞºĞ°Ğ·ĞºĞ°.
+
+### Ğ¤Ğ¾Ñ€Ğ¼ÑƒĞ»Ñ‹ Ğ¼ĞµÑ‚Ñ€Ğ¸Ğº
+
+**ĞŸÑ€Ğ¾Ğ¿Ğ¾Ñ€Ñ†Ğ¸Ğ¸** (`eps_prop`) â€” ĞºĞ»ÑÑ‡ĞµĞ²Ğ°Ñ Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ° Ğ´Ğ»Ñ Ğ¾Ñ‚Ğ»Ğ¸Ñ‡ĞµĞ½Ğ¸Ñ Â«ĞºÑƒĞ±Ğ°Â» Ğ¾Ñ‚ Â«ÑÑ‚Ğ¾Ğ»Ğ±Ğ°/Ğ±Ğ»Ğ¸Ğ½Ğ°Â»:
+
+```
+k_actual   = (V_bot.y âˆ’ cy) / (y_bb âˆ’ cy)        // Ğ¸Ğ· ÑĞºÑ€Ğ°Ğ½Ğ°
+k_expected = 1 + (h_f / d) Â· cos(Ïˆ)              // Ğ´Ğ»Ñ ĞºÑƒĞ±Ğ°
+eps_prop   = |k_actual âˆ’ k_expected| / (k_expected âˆ’ 1)
+```
+
+Ğ³Ğ´Ğµ `y_bb` â€” `y`-ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ğ° Ğ¿ĞµÑ€ĞµÑĞµÑ‡ĞµĞ½Ğ¸Ñ Ğ·Ğ°Ğ´Ğ½ĞµĞ¹ Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»Ğ¸ Ñ Ğ±Ğ¾ĞºĞ¾Ğ²Ñ‹Ğ¼ Ñ€ĞµĞ±Ñ€Ğ¾Ğ¼ ÑĞ½Ğ¸Ğ·Ñƒ, Ïˆ â€” ÑƒĞ³Ğ¾Ğ» Ğ¿Ğ¾Ğ²Ğ¾Ñ€Ğ¾Ñ‚Ğ° ĞºÑƒĞ±Ğ°.
+
+**ĞŸĞµÑ€Ğ¿ĞµĞ½Ğ´Ğ¸ĞºÑƒĞ»ÑÑ€Ğ½Ğ¾ÑÑ‚ÑŒ** (`eps_angle`):
+
+```
+eps_angle = |Ïˆ_L + Ïˆ_R âˆ’ 90Â°|
+```
+Ğ³Ğ´Ğµ `Ïˆ_L = atan((cx âˆ’ x_L) / d)`, `Ïˆ_R = atan((x_R âˆ’ cx) / d)`.
+
+Ğ’ Ğ°Ğ²Ñ‚Ğ¾-Ñ€ĞµĞ¶Ğ¸Ğ¼Ğµ Ğ²ÑĞµĞ³Ğ´Ğ° â‰ˆ0 â€” Ğ¿Ğ¾ Ğ¿Ğ¾ÑÑ‚Ñ€Ğ¾ĞµĞ½Ğ¸Ñ Ğ°Ğ²Ñ‚Ğ¾-FOV.
+
+
+
+## ĞĞ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ñ
+
+- **ĞĞ´Ğ½Ğ° Ñ†ĞµĞ½Ñ‚Ñ€Ğ°Ğ»ÑŒĞ½Ğ°Ñ Ğ¿Ñ€Ğ¾ĞµĞºÑ†Ğ¸Ñ**: Ğ½Ğµ Ğ¿Ğ¾Ğ´Ğ´ĞµÑ€Ğ¶Ğ¸Ğ²Ğ°ĞµÑ‚ÑÑ Ğ½Ğ°ĞºĞ»Ğ¾Ğ½/ĞºÑ€ĞµĞ½ ĞºĞ°Ğ¼ĞµÑ€Ñ‹.
+- **`h_f` ĞºĞ°Ğº Ñ€ĞµÑ„ĞµÑ€ĞµĞ½Ñ**: ĞµÑĞ»Ğ¸ ÑÑ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğµ Ñ€ĞµĞ±Ñ€Ğ¾ ĞºĞ¾Ñ€Ğ¾Ñ‚ĞºĞ¾Ğµ (< 5px), Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ñ ÑÑ‚Ğ°Ğ½Ğ¾Ğ²Ğ¸Ñ‚ÑÑ ÑˆÑƒĞ¼Ğ½Ğ¾Ğ¹.
+- **ĞŸÑ€Ğ¾Ğ¿Ğ¾Ñ€Ñ†Ğ¸Ğ¸** Ñ€Ğ°Ğ±Ğ¾Ñ‚Ğ°ÑÑ‚ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ ĞºĞ¾Ğ³Ğ´Ğ° Ğ½Ğ°Ñ€Ğ¸ÑĞ¾Ğ²Ğ°Ğ½Ñ‹ Ğ¾Ğ±Ğµ Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»Ğ¸.
+- **3/1** (Ñ‚Ñ€Ğ¸ Ñ€ĞµĞ±Ñ€Ğ° Ğ¸Ğ· Ñ‡ĞµÑ‚Ñ‹Ñ€Ñ‘Ñ… Ñ Ğ¾Ğ´Ğ½Ğ¾Ğ¹ ÑÑ‚Ğ¾Ñ€Ğ¾Ğ½Ñ‹) â†’ VP Ğ½Ğµ Ğ²Ñ‹Ñ‡Ğ¸ÑĞ»ÑÑÑ‚ÑÑ, Ğ¿Ğ°Ñ€Ğ¾ÑĞ¾Ñ‡ĞµÑ‚Ğ°Ğ½Ğ¸Ğµ Ğ½ĞµĞ¾Ğ´Ğ½Ğ¾Ğ·Ğ½Ğ°Ñ‡Ğ½Ğ¾.
+- **Undo** Ğ²Ğ¾ÑÑÑ‚Ğ°Ğ½Ğ°Ğ²Ğ»Ğ¸Ğ²Ğ°ĞµÑ‚ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ñ€Ğ¸ÑÑƒĞ½Ğ¾Ğº, Ğ½Ğµ view/fov/Ñ€ĞµĞ¶Ğ¸Ğ¼Ñ‹.
+- **ĞĞµÑ‚ Ğ²Ñ‹Ğ´ĞµĞ»ĞµĞ½Ğ¸Ñ Ğ¸ Ğ³Ñ€ÑƒĞ¿Ğ¿Ğ¸Ñ€Ğ¾Ğ²ĞºĞ¸** â€” Ñ‡Ñ‚Ğ¾Ğ±Ñ‹ Ğ¿ĞµÑ€ĞµĞ¼ĞµÑÑ‚Ğ¸Ñ‚ÑŒ ĞºÑƒĞ± Ñ†ĞµĞ»Ğ¸ĞºĞ¾Ğ¼, Ñ‚Ğ°ÑĞºĞ°Ğ¹Ñ‚Ğµ ĞºĞ°Ğ¶Ğ´ÑƒÑ Ñ‚Ğ¾Ñ‡ĞºÑƒ Ğ¾Ñ‚Ğ´ĞµĞ»ÑŒĞ½Ğ¾.
+- **ĞĞµÑ‚ ÑĞºÑĞ¿Ğ¾Ñ€Ñ‚Ğ°** Ñ€Ğ¸ÑÑƒĞ½ĞºĞ°.
+
+
+## ĞšĞ°Ğº Ğ°Ğ´Ğ°Ğ¿Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ğ¿Ğ¾Ğ´ ÑĞµĞ±Ñ
+
+### Ğ˜Ğ·Ğ¼ĞµĞ½Ğ¸Ñ‚ÑŒ Ğ¿Ğ¾Ñ€Ğ¾Ğ³Ğ¸ Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ğ¸
+
+Ğ’ `updateValPanel`:
+```js
+row2('Ğ“Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚', pct(v.eps_horizon), rnk(v.eps_horizon, 0.05), ico(v.eps_horizon, 0.05));
+//                                                       â†‘ Ğ¿Ğ¾Ñ€Ğ¾Ğ³          â†‘ Ğ¿Ğ¾Ñ€Ğ¾Ğ³
+```
+
+### Ğ˜Ğ·Ğ¼ĞµĞ½Ğ¸Ñ‚ÑŒ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚Ñ‹ Ñ€Ñ‘Ğ±ĞµÑ€
+
+ĞšĞ¾Ğ½ÑÑ‚Ğ°Ğ½Ñ‚Ñ‹ Ğ² Ğ½Ğ°Ñ‡Ğ°Ğ»Ğµ ÑĞºÑ€Ğ¸Ğ¿Ñ‚Ğ°:
+```js
+const MAX_SIDE = 4, MAX_TOP = 2, MAX_VERTICALS = 2;
+```
+
+### Ğ˜Ğ·Ğ¼ĞµĞ½Ğ¸Ñ‚ÑŒ FOV Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ
+
+```js
+fov: 60,        // Ğ² state
+autoFov: true,  // Ğ¸ Ğ² HTML <input value="60">
+```
+
+### ĞŸĞ¾Ğ¼ĞµĞ½ÑÑ‚ÑŒ Ñ†Ğ²ĞµÑ‚Ğ°
+
+| Ğ­Ğ»ĞµĞ¼ĞµĞ½Ñ‚ | Ğ¡Ñ‚Ğ¸Ğ»ÑŒ |
+|||
+| Ğ¡Ñ‚Ğ°Ñ€Ñ‚Ğ¾Ğ²Ğ¾Ğµ Ñ€ĞµĞ±Ñ€Ğ¾ | `#8affb8` (Ğ·ĞµĞ»Ñ‘Ğ½Ñ‹Ğ¹) |
+| Ğ‘Ğ¾ĞºĞ¾Ğ²Ğ¾Ğµ | `#d8d8ff` (Ğ±ĞµĞ»Ñ‹Ğ¹) |
+| Ğ’ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ğ¾Ğµ | `#ffb87a` (Ğ¾Ñ€Ğ°Ğ½Ğ¶ĞµĞ²Ñ‹Ğ¹) |
+| Ğ’ĞµÑ€Ñ…Ğ½ĞµĞµ | `#a0e8ff` (Ğ³Ğ¾Ğ»ÑƒĞ±Ğ¾Ğ¹) |
+| Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ĞºÑƒĞ± | `rgba(200, 100, 255, 0.85)` (Ñ„Ğ¸Ğ¾Ğ»ĞµÑ‚Ğ¾Ğ²Ñ‹Ğ¹) |
+| Ğ¢Ğ¾Ñ‡ĞºĞ° ÑĞ²Ğ¾Ğ±Ğ¾Ğ´Ğ½Ğ°Ñ | `#7ab8ff` |
+| Ğ¢Ğ¾Ñ‡ĞºĞ°-Ğ¿ĞµÑ€ĞµÑĞµÑ‡ĞµĞ½Ğ¸Ğµ | `#a0e8ff` |
+
+### Ğ£Ğ±Ñ€Ğ°Ñ‚ÑŒ tap-tap Ñ€ĞµĞ¶Ğ¸Ğ¼
+
+Ğ’ `pointerUp`:
+```js
+if (gestureMoved) {
+  finishDraft(...);
+}
+// Ğ”Ğ¾Ğ±Ğ°Ğ²ÑŒ:
+else {
+  cancelDraft();
+}
+```
+
+### Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ñ‚Ñ€ĞµÑ‚ÑŒÑ Ğ²ĞµÑ€Ñ‚Ğ¸ĞºĞ°Ğ»ÑŒ Ğ¸Ğ»Ğ¸ Ğ´Ñ€ÑƒĞ³Ğ¾Ğµ Ñ€ĞµĞ±Ñ€Ğ¾
+
+ĞŸĞ¾Ñ‚Ñ€ĞµĞ±ÑƒĞµÑ‚ÑÑ:
+1. Ğ˜Ğ·Ğ¼ĞµĞ½Ğ¸Ñ‚ÑŒ `MAX_VERTICALS`.
+2. ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ğ¸Ñ‚ÑŒ `computeValidation` (Ñ‚Ğ°Ğ¼ Ñ†Ğ¸ĞºĞ» Ğ¿Ğ¾ `getCubeVerticals()`, Ñ€Ğ°Ğ±Ğ¾Ñ‚Ğ°ĞµÑ‚ Ğ´Ğ»Ñ Ğ»ÑĞ±Ğ¾Ğ³Ğ¾ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑÑ‚Ğ²Ğ°).
+3. ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ğ¸Ñ‚ÑŒ `ensureIntersectionPoints` â€” ÑĞ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ Ñ‚Ğ¾Ñ‡ĞºĞ¸ Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑĞºĞ¸.
+4. ĞĞ±Ğ½Ğ¾Ğ²Ğ¸Ñ‚ÑŒ `syncToolWithState` Ğ¿Ñ€Ğ¸ Ğ½ĞµĞ¾Ğ±Ñ…Ğ¾Ğ´Ğ¸Ğ¼Ğ¾ÑÑ‚Ğ¸.
+
+
+## ĞŸÑ€Ğ¸Ğ½Ñ†Ğ¸Ğ¿Ñ‹ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ
+
+1. **Single-file app.** Ğ‘ĞµĞ· `node_modules`, Ğ±ĞµĞ· ÑĞ±Ğ¾Ñ€ĞºĞ¸. ĞšĞ¾Ğ¿Ğ¸Ñ€ÑƒĞµÑ‚ÑÑ Ğ¸ Ğ·Ğ°Ğ¿ÑƒÑĞºĞ°ĞµÑ‚ÑÑ.
+2. **ĞĞ¸ĞºĞ°ĞºĞ¸Ñ… ĞºĞ»Ğ°ÑÑĞ¾Ğ².** Ğ’ÑÑ‘ Ğ½Ğ° Ñ„ÑƒĞ½ĞºÑ†Ğ¸ÑÑ… Ğ¸ Ğ¾Ğ±ÑŠĞµĞºÑ‚Ğ°Ñ…. ĞŸÑ€Ğ¾Ñ‰Ğµ Ğ´Ğ»Ñ Ğ¼Ğ°Ğ»ĞµĞ½ÑŒĞºĞ¾Ğ¹ Ğ¿Ñ€Ğ¾Ğ³Ñ€Ğ°Ğ¼Ğ¼Ñ‹.
+3. **Ğ•Ğ´Ğ¸Ğ½Ñ‹Ğ¹ `state`.** Ğ›ĞµĞ³ĞºĞ¾ ÑĞ½Ğ°Ğ¿ÑˆĞ¾Ñ‚Ğ¸Ñ‚ÑŒ, Ğ¾Ñ‚Ğ»Ğ°Ğ¶Ğ¸Ğ²Ğ°Ñ‚ÑŒ, Ñ‡Ğ¸Ñ‚Ğ°Ñ‚ÑŒ.
+4. **Ğ ĞµĞ½Ğ´ĞµÑ€ â€” Ñ‡Ğ¸ÑÑ‚Ğ°Ñ Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ñ.** `render()` Ğ´ĞµÑ‚ĞµÑ€Ğ¼Ğ¸Ğ½Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½, Ğ½Ğ¸Ñ‡ĞµĞ³Ğ¾ Ğ½Ğµ Ğ¼ÑƒÑ‚Ğ¸Ñ€ÑƒĞµÑ‚.
+5. **ĞŸÑ€Ğ¾Ğ¸Ğ·Ğ²Ğ¾Ğ´Ğ½Ñ‹Ğµ Ğ²Ñ‹Ñ‡Ğ¸ÑĞ»ÑÑÑ‚ÑÑ, Ğ° Ğ½Ğµ Ñ…Ñ€Ğ°Ğ½ÑÑ‚ÑÑ.** VP, Ğ³Ğ¾Ñ€Ğ¸Ğ·Ğ¾Ğ½Ñ‚, Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ¸ â€” ĞºĞ°Ğ¶Ğ´Ñ‹Ğ¹ ĞºĞ°Ğ´Ñ€.
+6. **Ğ‘ĞµĞ·Ñ€Ğ°Ğ·Ğ¼ĞµÑ€Ğ½Ñ‹Ğµ Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ¸.** Ğ’ÑĞµ Ğ¾ÑˆĞ¸Ğ±ĞºĞ¸ Ğ² Ğ¿Ñ€Ğ¾Ñ†ĞµĞ½Ñ‚Ğ°Ñ… Ğ¾Ñ‚ `h_f`.
+7. **ĞœĞ°Ñ‚ĞµĞ¼Ğ°Ñ‚Ğ¸ĞºĞ° Ğ¸Ğ·Ğ¾Ğ»Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ° Ğ¾Ñ‚ UI.** `computeValidation` Ğ½Ğµ Ğ·Ğ½Ğ°ĞµÑ‚ Ğ¾ ĞºĞ½Ğ¾Ğ¿ĞºĞ°Ñ….
+8. **Auto FOV â€” Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡Ğ½Ğ¾Ğµ ÑƒÑĞ»Ğ¾Ğ²Ğ¸Ğµ, Ğ° Ğ½Ğµ Ğ½Ğ°ÑÑ‚Ñ€Ğ¾Ğ¹ĞºĞ°.** Ğ’ĞºĞ»ÑÑ‡Ñ‘Ğ½ Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ.
+
+
+
+=== FILE: app.js ===
+import { DEFAULTS, THRESHOLDS } from './config.js'
+import { Camera } from './core/camera.js'
+import { Scene } from './domain/scene.js'
+import { PointerController } from './PointerController.js'
+import { Renderer } from './Renderer.js'
+import { createTools } from './tools.js'
+import { UIManager } from './ui.js'
+
+export class AppState {
+  constructor({ viewportWidth, viewportHeight }) {
+    this.document = new Scene();
+    this.camera = new Camera({
+      fov: DEFAULTS.fov,
+      horizonOffset: DEFAULTS.horizonOffset,
+      pictureSizeCm: DEFAULTS.pictureSizeCm,
+      viewportWidth,
+      viewportHeight,
+    });
+    this.view = { x: 0, y: 0 };
+    this.ui = {
+      mode: 'theory',
+      tool: 'create',
+      visibility: { theory: true, practice: true, exam: true },
+      showSP: true,
+      showGuides: true,
+      showGuidesSec: false,
+      showTri: true,
+      showOrthoTable: true,
+      showRecognized: false,
+      showRawGraph: false,
+      showSimplifiedGraph: false,
+      tablesMode: 'full',
+      snapStart: 'points',
+      snapEnd: 'points',
+      defaultSegmentStyle: 'solid',
+    };
+    this.interaction = { draft: null };
+    this._listeners = new Set();
+  }
+
+  subscribe(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
+  emit() { for (const fn of this._listeners) fn(this); }
+}
+
+export class History {
+  constructor(initialScene, maxSize = THRESHOLDS.maxHistorySteps) {
+    this._max = maxSize;
+    this._stack = [];
+    this._index = -1;
+    this.push(initialScene);
+  }
+  push(scene) {
+    const snap = JSON.parse(JSON.stringify(scene.toSnapshot()));
+    this._stack = this._stack.slice(0, this._index + 1);
+    this._stack.push(snap);
+    if (this._stack.length > this._max) this._stack.shift();
+    this._index = this._stack.length - 1;
+  }
+  get canUndo() { return this._index > 0; }
+  get canRedo() { return this._index < this._stack.length - 1; }
+  undo() {
+    if (!this.canUndo) return null;
+    this._index--;
+    return Scene.fromSnapshot(this._stack[this._index]);
+  }
+  redo() {
+    if (!this.canRedo) return null;
+    this._index++;
+    return Scene.fromSnapshot(this._stack[this._index]);
+  }
+}
+
+export class ToolManager {
+  constructor({ state, history }) {
+    this.state = state;
+    this.history = history;
+    this.tools = createTools({ state, history });
+    this._active = this.tools[state.ui.tool] || this.tools.create;
+    this.state.ui.tool = this._active.name;
+  }
+  setTool(name) {
+    if (!this.tools[name]) return;
+    if (this._active && this._active.onCancel) this._active.onCancel();
+    this._active = this.tools[name];
+    this.state.ui.tool = name;
+    this.state.emit();
+  }
+  get active() { return this._active; }
+  onPointerDown(w) { this._active.onPointerDown(w); }
+  onPointerMove(w) { this._active.onPointerMove(w); }
+  onPointerUp(w) { this._active.onPointerUp(w); }
+  onPointerCancel() { this._active.onPointerCancel(); }
+}
+
+export class Application {
+  constructor(canvas) {
+    this.state = new AppState({
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    });
+    this.history = new History(this.state.document, THRESHOLDS.maxHistorySteps);
+    this.renderer = new Renderer({ canvas, state: this.state });
+    this.toolManager = new ToolManager({ state: this.state, history: this.history });
+    this.pointer = new PointerController({
+      canvas,
+      state: this.state,
+      toolManager: this.toolManager,
+    });
+    this.ui = new UIManager({ state: this.state, app: this });
+
+    this.state.subscribe(() => {
+      this.renderer.render();
+      this.ui.update();
+    });
+
+    window.addEventListener('resize', () => {
+      this.state.camera.setViewport(window.innerWidth, window.innerHeight);
+      this.state.emit();
+    });
+  }
+
+  start() {
+    this.ui.mount(document.body);
+    this.pointer.attach();
+    this.renderer.render();
+    this.ui.update();
+    document.body.classList.add('mode-create');
+    document.body.classList.add('mode-theory');
+  }
+
+  pushHistory() { this.history.push(this.state.document); }
+
+  undo() {
+    const scene = this.history.undo();
+    if (scene) { this.state.document = scene; this.state.emit(); }
+  }
+
+  redo() {
+    const scene = this.history.redo();
+    if (scene) { this.state.document = scene; this.state.emit(); }
+  }
+
+  clearAll() {
+    this.state.document = new Scene();
+    this.state.view = { x: 0, y: 0 };
+    this.state.interaction.draft = null;
+    this.pushHistory();
+    this.state.emit();
+  }
+
+  setMode(mode) {
+    if (this.state.interaction.draft) this.state.interaction.draft = null;
+    this.state.ui.mode = mode;
+    const validTools = (mode === 'practice' || mode === 'exam')
+      ? ['segment', 'erase', 'move']
+      : ['create', 'link', 'move'];
+    if (!validTools.includes(this.state.ui.tool)) this.toolManager.setTool(validTools[0]);
+    this.state.emit();
+  }
+
+  setTool(name) { this.toolManager.setTool(name); }
+}
+
+
+=== FILE: config.js ===
+export const COLORS = {
+  rainbow: ['#ff5c5c', '#ff8a4a', '#ffd888', '#8affb8', '#7ab8ff', '#c0a0ff', '#ff6ad5'],
+  segment: { solid: '#8affb8', dashed: '#c0a0ff', selected: '#ffd888' },
+  box: { main: '#7ab8ff', link: '#c0a0ff', selected: '#ffd888' },
+  vp: {
+    x: [122, 184, 255],
+    y: [255, 138, 74],
+    z: [138, 255, 184],
+  },
+  sp: '#8affb8',
+  vp3: '#ff8a4a',
+  horizon: 'rgba(255,200,100,0.7)',
+  frame: 'rgba(140,140,170,0.55)',
+  ortho: '#ffb800',
+  recognized: 'rgba(255,138,74,0.9)',
+  recognizedHidden: 'rgba(255,138,74,0.35)',
+  background: '#1a1a1f',
+};
+
+export const THRESHOLDS = {
+  snapPointPx: 22,
+  snapLinePx: 15,
+  minSegLenPx: 5,
+  dragThresholdPx: 8,
+  hitVP3Px: 32,
+  hitBoxPx: 28,
+  hitSegBodyPx: 14,
+  hitSegEndpointPx: 15,
+  graphSnapPx: 10,
+  graphLinePx: 2.5,
+  graphParamEps: 0.02,
+  graphMinEdgePx: 3,
+  graphParallelEps: 1e-3,
+  mergeTrianglePx: 30,
+  mergeMaxIter: 20,
+  parallelAngleDeg: 4,
+  groupAngleDeg: 18,
+  maxHistorySteps: 60,
+  vp3MinMarginPx: 50,
+};
+
+export const DEFAULTS = {
+  fov: 90,
+  horizonOffset: 0.3,
+  pictureSizeCm: 20,
+  boxSize: { w: 100, h: 100, dep: 100 },
+  linkDefaults: { d1: 200, d2: 200, theta: 60, alpha: 0, beta: 0, secW: 100, secH: 100, secDep: 100 },
+  bottomBarHeightPx: 148,
+};
+
+export function graphColors(idx) {
+  return {
+    raw: COLORS.rainbow[idx % 7],
+    simp: COLORS.rainbow[(idx + 2) % 7],
+  };
+}
+
+
+=== FILE: .git/index ===
+DIRC      jí‚k6à½Ájí‚k6à½Á Ñ  ¤  è  è  &;Ò²;õn2ZÍ–¾ªjµ:ƒ LICENSE   jí‚k6âyjí‚k6ây à  ¤  è  è  Q³¾`G(ñá¨N(¨ÖæÌĞÁ.ÌÆ‚µ 	README.md jí‚k6âyjí‚k6ây á  ¤  è  è  ÆÚ;Ò…’rD3ÎËikvJ‚÷ÊÑ 	index.htm TREE    3 0
+.wP€#ëúôU¨Š¦»Í^ÄŸG´{ßûrÊuØ¢ÆA¶@£ô
+
+
+=== FILE: .git/info/exclude ===
+# git ls-files --others --exclude-from=.git/info/exclude
+# Lines that start with '#' are comments.
+# For a project mostly in C, the following would be a good set of
+# exclude patterns (uncomment them if you want to use them):
+# *.[oa]
+# *~
+
+
+
+=== FILE: .git/logs/refs/remotes/origin/HEAD ===
+0000000000000000000000000000000000000000 2a765535b8506eb131ad05ee7fc33fe180da170e KiselkovD <denis.kiselkov@list.ru> 1793950315 +0300	clone: from https://github.com/KiselkovD/Cube-Drawing-Trainer.git
+
+
+
+=== FILE: .git/logs/refs/heads/main ===
+0000000000000000000000000000000000000000 2a765535b8506eb131ad05ee7fc33fe180da170e KiselkovD <denis.kiselkov@list.ru> 1793950315 +0300	clone: from https://github.com/KiselkovD/Cube-Drawing-Trainer.git
+
+
+
+=== FILE: .git/logs/HEAD ===
+0000000000000000000000000000000000000000 2a765535b8506eb131ad05ee7fc33fe180da170e KiselkovD <denis.kiselkov@list.ru> 1793950315 +0300	clone: from https://github.com/KiselkovD/Cube-Drawing-Trainer.git
+
+
+
+=== FILE: .git/hooks/pre-commit.sample ===
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed.
+# Called by "git commit" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message if
+# it wants to stop the commit.
+#
+# To enable this hook, rename this file to "pre-commit".
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+	against=HEAD
+else
+	# Initial commit: diff against an empty tree object
+	against=$(git hash-object -t tree /dev/null)
+fi
+
+# If you want to allow non-ASCII filenames set this variable to true.
+allownonascii=$(git config --type=bool hooks.allownonascii)
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Cross platform projects tend to avoid non-ASCII filenames; prevent
+# them from being added to the repository. We exploit the fact that the
+# printable range starts at the space character and ends with tilde.
+if [ "$allownonascii" != "true" ] &&
+	# Note that the use of brackets around a tr range is ok here, (it's
+	# even required, for portability to Solaris 10's /usr/bin/tr), since
+	# the square bracket bytes happen to fall in the designated range.
+	test $(git diff-index --cached --name-only --diff-filter=A -z $against |
+	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
+then
+	cat <<\EOF
+Error: Attempt to add a non-ASCII file name.
+
+This can cause problems if you want to work with people on other platforms.
+
+To be portable it is advisable to rename the file.
+
+If you know what you are doing you can disable this check using:
+
+  git config hooks.allownonascii true
+EOF
+	exit 1
+fi
+
+# If there are whitespace errors, print the offending file names and fail.
+exec git diff-index --check --cached $against --
+
+
+
+=== FILE: .git/hooks/pre-rebase.sample ===
+#!/bin/sh
+#
+# Copyright (c) 2006, 2008 Junio C Hamano
+#
+# The "pre-rebase" hook is run just before "git rebase" starts doing
+# its job, and can prevent the command from running by exiting with
+# non-zero status.
+#
+# The hook is called with the following parameters:
+#
+# $1 -- the upstream the series was forked from.
+# $2 -- the branch being rebased (or empty when rebasing the current branch).
+#
+# This sample shows how to prevent topic branches that are already
+# merged to 'next' branch from getting rebased, because allowing it
+# would result in rebasing already published history.
+
+publish=next
+basebranch="$1"
+if test "$#" = 2
+then
+	topic="refs/heads/$2"
+else
+	topic=`git symbolic-ref HEAD` ||
+	exit 0 ;# we do not interrupt rebasing detached HEAD
+fi
+
+case "$topic" in
+refs/heads/??/*)
+	;;
+*)
+	exit 0 ;# we do not interrupt others.
+	;;
+esac
+
+# Now we are dealing with a topic branch being rebased
+# on top of master.  Is it OK to rebase it?
+
+# Does the topic really exist?
+git show-ref -q "$topic" || {
+	echo >&2 "No such branch $topic"
+	exit 1
+}
+
+# Is topic fully merged to master?
+not_in_master=`git rev-list --pretty=oneline ^master "$topic"`
+if test -z "$not_in_master"
+then
+	echo >&2 "$topic is fully merged to master; better remove it."
+	exit 1 ;# we could allow it, but there is no point.
+fi
+
+# Is topic ever merged to next?  If so you should not be rebasing it.
+only_next_1=`git rev-list ^master "^$topic" ${publish} | sort`
+only_next_2=`git rev-list ^master           ${publish} | sort`
+if test "$only_next_1" = "$only_next_2"
+then
+	not_in_topic=`git rev-list "^$topic" master`
+	if test -z "$not_in_topic"
+	then
+		echo >&2 "$topic is already up to date with master"
+		exit 1 ;# we could allow it, but there is no point.
+	else
+		exit 0
+	fi
+else
+	not_in_next=`git rev-list --pretty=oneline ^${publish} "$topic"`
+	/usr/bin/perl -e '
+		my $topic = $ARGV[0];
+		my $msg = "* $topic has commits already merged to public branch:\n";
+		my (%not_in_next) = map {
+			/^([0-9a-f]+) /;
+			($1 => 1);
+		} split(/\n/, $ARGV[1]);
+		for my $elem (map {
+				/^([0-9a-f]+) (.*)$/;
+				[$1 => $2];
+			} split(/\n/, $ARGV[2])) {
+			if (!exists $not_in_next{$elem->[0]}) {
+				if ($msg) {
+					print STDERR $msg;
+					undef $msg;
+				}
+				print STDERR " $elem->[1]\n";
+			}
+		}
+	' "$topic" "$not_in_next" "$not_in_master"
+	exit 1
+fi
+
+<<\DOC_END
+
+This sample hook safeguards topic branches that have been
+published from being rewound.
+
+The workflow assumed here is:
+
+ * Once a topic branch forks from "master", "master" is never
+   merged into it again (either directly or indirectly).
+
+ * Once a topic branch is fully cooked and merged into "master",
+   it is deleted.  If you need to build on top of it to correct
+   earlier mistakes, a new topic branch is created by forking at
+   the tip of the "master".  This is not strictly necessary, but
+   it makes it easier to keep your history simple.
+
+ * Whenever you need to test or publish your changes to topic
+   branches, merge them into "next" branch.
+
+The script, being an example, hardcodes the publish branch name
+to be "next", but it is trivial to make it configurable via
+$GIT_DIR/config mechanism.
+
+With this workflow, you would want to know:
+
+(1) ... if a topic branch has ever been merged to "next".  Young
+    topic branches can have stupid mistakes you would rather
+    clean up before publishing, and things that have not been
+    merged into other branches can be easily rebased without
+    affecting other people.  But once it is published, you would
+    not want to rewind it.
+
+(2) ... if a topic branch has been fully merged to "master".
+    Then you can delete it.  More importantly, you should not
+    build on top of it -- other people may already want to
+    change things related to the topic as patches against your
+    "master", so if you need further changes, it is better to
+    fork the topic (perhaps with the same name) afresh from the
+    tip of "master".
+
+Let's look at this example:
+
+		   o---o---o---o---o---o---o---o---o---o "next"
+		  /       /           /           /
+		 /   a---a---b A     /           /
+		/   /               /           /
+	       /   /   c---c---c---c B         /
+	      /   /   /             \         /
+	     /   /   /   b---b C     \       /
+	    /   /   /   /             \     /
+    ---o---o---o---o---o---o---o---o---o---o---o "master"
+
+
+A, B and C are topic branches.
+
+ * A has one fix since it was merged up to "next".
+
+ * B has finished.  It has been fully merged up to "master" and "next",
+   and is ready to be deleted.
+
+ * C has not merged to "next" at all.
+
+We would want to allow C to be rebased, refuse A, and encourage
+B to be deleted.
+
+To compute (1):
+
+	git rev-list ^master ^topic next
+	git rev-list ^master        next
+
+	if these match, topic has not merged in next at all.
+
+To compute (2):
+
+	git rev-list master..topic
+
+	if this is empty, it is fully merged to "master".
+
+DOC_END
+
+
+
+=== FILE: .git/hooks/pre-receive.sample ===
+#!/bin/sh
+#
+# An example hook script to make use of push options.
+# The example simply echoes all push options that start with 'echoback='
+# and rejects all pushes when the "reject" push option is used.
+#
+# To enable this hook, rename this file to "pre-receive".
+
+if test -n "$GIT_PUSH_OPTION_COUNT"
+then
+	i=0
+	while test "$i" -lt "$GIT_PUSH_OPTION_COUNT"
+	do
+		eval "value=\$GIT_PUSH_OPTION_$i"
+		case "$value" in
+		echoback=*)
+			echo "echo from the pre-receive-hook: ${value#*=}" >&2
+			;;
+		reject)
+			exit 1
+		esac
+		i=$((i + 1))
+	done
+fi
+
+
+
+=== FILE: .git/hooks/pre-applypatch.sample ===
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed
+# by applypatch from an e-mail message.
+#
+# The hook should exit with non-zero status after issuing an
+# appropriate message if it wants to stop the commit.
+#
+# To enable this hook, rename this file to "pre-applypatch".
+
+. git-sh-setup
+precommit="$(git rev-parse --git-path hooks/pre-commit)"
+test -x "$precommit" && exec "$precommit" ${1+"$@"}
+:
+
+
+
+=== FILE: .git/hooks/applypatch-msg.sample ===
+#!/bin/sh
+#
+# An example hook script to check the commit log message taken by
+# applypatch from an e-mail message.
+#
+# The hook should exit with non-zero status after issuing an
+# appropriate message if it wants to stop the commit.  The hook is
+# allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "applypatch-msg".
+
+. git-sh-setup
+commitmsg="$(git rev-parse --git-path hooks/commit-msg)"
+test -x "$commitmsg" && exec "$commitmsg" ${1+"$@"}
+:
+
+
+
+=== FILE: .git/hooks/update.sample ===
+#!/bin/sh
+#
+# An example hook script to block unannotated tags from entering.
+# Called by "git receive-pack" with arguments: refname sha1-old sha1-new
+#
+# To enable this hook, rename this file to "update".
+#
+# Config
+# ------
+# hooks.allowunannotated
+#   This boolean sets whether unannotated tags will be allowed into the
+#   repository.  By default they won't be.
+# hooks.allowdeletetag
+#   This boolean sets whether deleting tags will be allowed in the
+#   repository.  By default they won't be.
+# hooks.allowmodifytag
+#   This boolean sets whether a tag may be modified after creation. By default
+#   it won't be.
+# hooks.allowdeletebranch
+#   This boolean sets whether deleting branches will be allowed in the
+#   repository.  By default they won't be.
+# hooks.denycreatebranch
+#   This boolean sets whether remotely creating branches will be denied
+#   in the repository.  By default this is allowed.
+#
+
+# --- Command line
+refname="$1"
+oldrev="$2"
+newrev="$3"
+
+# --- Safety check
+if [ -z "$GIT_DIR" ]; then
+	echo "Don't run this script from the command line." >&2
+	echo " (if you want, you could supply GIT_DIR then run" >&2
+	echo "  $0 <ref> <oldrev> <newrev>)" >&2
+	exit 1
+fi
+
+if [ -z "$refname" -o -z "$oldrev" -o -z "$newrev" ]; then
+	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
+	exit 1
+fi
+
+# --- Config
+allowunannotated=$(git config --type=bool hooks.allowunannotated)
+allowdeletebranch=$(git config --type=bool hooks.allowdeletebranch)
+denycreatebranch=$(git config --type=bool hooks.denycreatebranch)
+allowdeletetag=$(git config --type=bool hooks.allowdeletetag)
+allowmodifytag=$(git config --type=bool hooks.allowmodifytag)
+
+# check for no description
+projectdesc=$(sed -e '1q' "$GIT_DIR/description")
+case "$projectdesc" in
+"Unnamed repository"* | "")
+	echo "*** Project description file hasn't been set" >&2
+	exit 1
+	;;
+esac
+
+# --- Check types
+# if $newrev is 0000...0000, it's a commit to delete a ref.
+zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
+if [ "$newrev" = "$zero" ]; then
+	newrev_type=delete
+else
+	newrev_type=$(git cat-file -t $newrev)
+fi
+
+case "$refname","$newrev_type" in
+	refs/tags/*,commit)
+		# un-annotated tag
+		short_refname=${refname##refs/tags/}
+		if [ "$allowunannotated" != "true" ]; then
+			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
+			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
+			exit 1
+		fi
+		;;
+	refs/tags/*,delete)
+		# delete tag
+		if [ "$allowdeletetag" != "true" ]; then
+			echo "*** Deleting a tag is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	refs/tags/*,tag)
+		# annotated tag
+		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
+		then
+			echo "*** Tag '$refname' already exists." >&2
+			echo "*** Modifying a tag is not allowed in this repository." >&2
+			exit 1
+		fi
+		;;
+	refs/heads/*,commit)
+		# branch
+		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
+			echo "*** Creating a branch is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	refs/heads/*,delete)
+		# delete branch
+		if [ "$allowdeletebranch" != "true" ]; then
+			echo "*** Deleting a branch is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	refs/remotes/*,commit)
+		# tracking branch
+		;;
+	refs/remotes/*,delete)
+		# delete tracking branch
+		if [ "$allowdeletebranch" != "true" ]; then
+			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	*)
+		# Anything else (is there anything else?)
+		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
+		exit 1
+		;;
+esac
+
+# --- Finished
+exit 0
+
+
+
+=== FILE: .git/hooks/post-update.sample ===
+#!/bin/sh
+#
+# An example hook script to prepare a packed repository for use over
+# dumb transports.
+#
+# To enable this hook, rename this file to "post-update".
+
+exec git update-server-info
+
+
+
+=== FILE: .git/hooks/sendemail-validate.sample ===
+#!/bin/sh
+
+# An example hook script to validate a patch (and/or patch series) before
+# sending it via email.
+#
+# The hook should exit with non-zero status after issuing an appropriate
+# message if it wants to prevent the email(s) from being sent.
+#
+# To enable this hook, rename this file to "sendemail-validate".
+#
+# By default, it will only check that the patch(es) can be applied on top of
+# the default upstream branch without conflicts in a secondary worktree. After
+# validation (successful or not) of the last patch of a series, the worktree
+# will be deleted.
+#
+# The following config variables can be set to change the default remote and
+# remote ref that are used to apply the patches against:
+#
+#   sendemail.validateRemote (default: origin)
+#   sendemail.validateRemoteRef (default: HEAD)
+#
+# Replace the TODO placeholders with appropriate checks according to your
+# needs.
+
+validate_cover_letter () {
+	file="$1"
+	# TODO: Replace with appropriate checks (e.g. spell checking).
+	true
+}
+
+validate_patch () {
+	file="$1"
+	# Ensure that the patch applies without conflicts.
+	git am -3 "$file" || return
+	# TODO: Replace with appropriate checks for this patch
+	# (e.g. checkpatch.pl).
+	true
+}
+
+validate_series () {
+	# TODO: Replace with appropriate checks for the whole series
+	# (e.g. quick build, coding style checks, etc.).
+	true
+}
+
+# main -------------------------------------------------------------------------
+
+if test "$GIT_SENDEMAIL_FILE_COUNTER" = 1
+then
+	remote=$(git config --default origin --get sendemail.validateRemote) &&
+	ref=$(git config --default HEAD --get sendemail.validateRemoteRef) &&
+	worktree=$(mktemp --tmpdir -d sendemail-validate.XXXXXXX) &&
+	git worktree add -fd --checkout "$worktree" "refs/remotes/$remote/$ref" &&
+	git config --replace-all sendemail.validateWorktree "$worktree"
+else
+	worktree=$(git config --get sendemail.validateWorktree)
+fi || {
+	echo "sendemail-validate: error: failed to prepare worktree" >&2
+	exit 1
+}
+
+unset GIT_DIR GIT_WORK_TREE
+cd "$worktree" &&
+
+if grep -q "^diff --git " "$1"
+then
+	validate_patch "$1"
+else
+	validate_cover_letter "$1"
+fi &&
+
+if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
+then
+	git config --unset-all sendemail.validateWorktree &&
+	trap 'git worktree remove -ff "$worktree"' EXIT &&
+	validate_series
+fi
+
+
+
+=== FILE: .git/hooks/pre-push.sample ===
+#!/bin/sh
+
+# An example hook script to verify what is about to be pushed.  Called by "git
+# push" after it has checked the remote status, but before anything has been
+# pushed.  If this script exits with a non-zero status nothing will be pushed.
+#
+# This hook is called with the following parameters:
+#
+# $1 -- Name of the remote to which the push is being done
+# $2 -- URL to which the push is being done
+#
+# If pushing without using a named remote those arguments will be equal.
+#
+# Information about the commits which are being pushed is supplied as lines to
+# the standard input in the form:
+#
+#   <local ref> <local oid> <remote ref> <remote oid>
+#
+# This sample shows how to prevent push of commits where the log message starts
+# with "WIP" (work in progress).
+
+remote="$1"
+url="$2"
+
+zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
+
+while read local_ref local_oid remote_ref remote_oid
+do
+	if test "$local_oid" = "$zero"
+	then
+		# Handle delete
+		:
+	else
+		if test "$remote_oid" = "$zero"
+		then
+			# New branch, examine all commits
+			range="$local_oid"
+		else
+			# Update to existing branch, examine new commits
+			range="$remote_oid..$local_oid"
+		fi
+
+		# Check for WIP commit
+		commit=$(git rev-list -n 1 --grep '^WIP' "$range")
+		if test -n "$commit"
+		then
+			echo >&2 "Found WIP commit in $local_ref, not pushing"
+			exit 1
+		fi
+	fi
+done
+
+exit 0
+
+
+
+=== FILE: .git/hooks/commit-msg.sample ===
+#!/bin/sh
+#
+# An example hook script to check the commit log message.
+# Called by "git commit" with one argument, the name of the file
+# that has the commit message.  The hook should exit with non-zero
+# status after issuing an appropriate message if it wants to stop the
+# commit.  The hook is allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "commit-msg".
+
+# Uncomment the below to add a Signed-off-by line to the message.
+# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
+# hook is more suited to it.
+#
+# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
+
+# This example catches duplicate Signed-off-by lines.
+
+test "" = "$(grep '^Signed-off-by: ' "$1" |
+	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
+	echo >&2 Duplicate Signed-off-by lines.
+	exit 1
+}
+
+
+
+=== FILE: .git/hooks/prepare-commit-msg.sample ===
+#!/bin/sh
+#
+# An example hook script to prepare the commit log message.
+# Called by "git commit" with the name of the file that has the
+# commit message, followed by the description of the commit
+# message's source.  The hook's purpose is to edit the commit
+# message file.  If the hook fails with a non-zero status,
+# the commit is aborted.
+#
+# To enable this hook, rename this file to "prepare-commit-msg".
+
+# This hook includes three examples. The first one removes the
+# "# Please enter the commit message..." help message.
+#
+# The second includes the output of "git diff --name-status -r"
+# into the message, just before the "git status" output.  It is
+# commented because it doesn't cope with --amend or with squashed
+# commits.
+#
+# The third example adds a Signed-off-by line to the message, that can
+# still be edited.  This is rarely a good idea.
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+SHA1=$3
+
+/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
+
+# case "$COMMIT_SOURCE,$SHA1" in
+#  ,|template,)
+#    /usr/bin/perl -i.bak -pe '
+#       print "\n" . `git diff --cached --name-status -r`
+# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
+#  *) ;;
+# esac
+
+# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
+# if test -z "$COMMIT_SOURCE"
+# then
+#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
+# fi
+
+
+
+=== FILE: .git/hooks/push-to-checkout.sample ===
+#!/bin/sh
+
+# An example hook script to update a checked-out tree on a git push.
+#
+# This hook is invoked by git-receive-pack(1) when it reacts to git
+# push and updates reference(s) in its repository, and when the push
+# tries to update the branch that is currently checked out and the
+# receive.denyCurrentBranch configuration variable is set to
+# updateInstead.
+#
+# By default, such a push is refused if the working tree and the index
+# of the remote repository has any difference from the currently
+# checked out commit; when both the working tree and the index match
+# the current commit, they are updated to match the newly pushed tip
+# of the branch. This hook is to be used to override the default
+# behaviour; however the code below reimplements the default behaviour
+# as a starting point for convenient modification.
+#
+# The hook receives the commit with which the tip of the current
+# branch is going to be updated:
+commit=$1
+
+# It can exit with a non-zero status to refuse the push (when it does
+# so, it must not modify the index or the working tree).
+die () {
+	echo >&2 "$*"
+	exit 1
+}
+
+# Or it can make any necessary changes to the working tree and to the
+# index to bring them to the desired state when the tip of the current
+# branch is updated to the new commit, and exit with a zero status.
+#
+# For example, the hook can simply run git read-tree -u -m HEAD "$1"
+# in order to emulate git fetch that is run in the reverse direction
+# with git push, as the two-tree form of git read-tree -u -m is
+# essentially the same as git switch or git checkout that switches
+# branches while keeping the local changes in the working tree that do
+# not interfere with the difference between the branches.
+
+# The below is a more-or-less exact translation to shell of the C code
+# for the default behaviour for git's push-to-checkout hook defined in
+# the push_to_deploy() function in builtin/receive-pack.c.
+#
+# Note that the hook will be executed from the repository directory,
+# not from the working tree, so if you want to perform operations on
+# the working tree, you will have to adapt your code accordingly, e.g.
+# by adding "cd .." or using relative paths.
+
+if ! git update-index -q --ignore-submodules --refresh
+then
+	die "Up-to-date check failed"
+fi
+
+if ! git diff-files --quiet --ignore-submodules --
+then
+	die "Working directory has unstaged changes"
+fi
+
+# This is a rough translation of:
+#
+#   head_has_history() ? "HEAD" : EMPTY_TREE_SHA1_HEX
+if git cat-file -e HEAD 2>/dev/null
+then
+	head=HEAD
+else
+	head=$(git hash-object -t tree --stdin </dev/null)
+fi
+
+if ! git diff-index --quiet --cached --ignore-submodules $head --
+then
+	die "Working directory has staged changes"
+fi
+
+if ! git read-tree -u -m "$commit"
+then
+	die "Could not update working tree to new HEAD"
+fi
+
+
+
+=== FILE: .git/hooks/fsmonitor-watchman.sample ===
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use IPC::Open2;
+
+# An example hook script to integrate Watchman
+# (https://facebook.github.io/watchman/) with git to speed up detecting
+# new and modified files.
+#
+# The hook is passed a version (currently 2) and last update token
+# formatted as a string and outputs to stdout a new update token and
+# all files that have been modified since the update token. Paths must
+# be relative to the root of the working tree and separated by a single NUL.
+#
+# To enable this hook, rename this file to "query-watchman" and set
+# 'git config core.fsmonitor .git/hooks/query-watchman'
+#
+my ($version, $last_update_token) = @ARGV;
+
+# Uncomment for debugging
+# print STDERR "$0 $version $last_update_token\n";
+
+# Check the hook interface version
+if ($version ne 2) {
+	die "Unsupported query-fsmonitor hook version '$version'.\n" .
+	    "Falling back to scanning...\n";
+}
+
+my $git_work_tree = get_working_dir();
+
+my $retry = 1;
+
+my $json_pkg;
+eval {
+	require JSON::XS;
+	$json_pkg = "JSON::XS";
+	1;
+} or do {
+	require JSON::PP;
+	$json_pkg = "JSON::PP";
+};
+
+launch_watchman();
+
+sub launch_watchman {
+	my $o = watchman_query();
+	if (is_work_tree_watched($o)) {
+		output_result($o->{clock}, @{$o->{files}});
+	}
+}
+
+sub output_result {
+	my ($clockid, @files) = @_;
+
+	# Uncomment for debugging watchman output
+	# open (my $fh, ">", ".git/watchman-output.out");
+	# binmode $fh, ":utf8";
+	# print $fh "$clockid\n@files\n";
+	# close $fh;
+
+	binmode STDOUT, ":utf8";
+	print $clockid;
+	print "\0";
+	local $, = "\0";
+	print @files;
+}
+
+sub watchman_clock {
+	my $response = qx/watchman clock "$git_work_tree"/;
+	die "Failed to get clock id on '$git_work_tree'.\n" .
+		"Falling back to scanning...\n" if $? != 0;
+
+	return $json_pkg->new->utf8->decode($response);
+}
+
+sub watchman_query {
+	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
+	or die "open2() failed: $!\n" .
+	"Falling back to scanning...\n";
+
+	# In the query expression below we're asking for names of files that
+	# changed since $last_update_token but not from the .git folder.
+	#
+	# To accomplish this, we're using the "since" generator to use the
+	# recency index to select candidate nodes and "fields" to limit the
+	# output to file names only. Then we're using the "expression" term to
+	# further constrain the results.
+	my $last_update_line = "";
+	if (substr($last_update_token, 0, 1) eq "c") {
+		$last_update_token = "\"$last_update_token\"";
+		$last_update_line = qq[\n"since": $last_update_token,];
+	}
+	my $query = <<"	END";
+		["query", "$git_work_tree", {$last_update_line
+			"fields": ["name"],
+			"expression": ["not", ["dirname", ".git"]]
+		}]
+	END
+
+	# Uncomment for debugging the watchman query
+	# open (my $fh, ">", ".git/watchman-query.json");
+	# print $fh $query;
+	# close $fh;
+
+	print CHLD_IN $query;
+	close CHLD_IN;
+	my $response = do {local $/; <CHLD_OUT>};
+
+	# Uncomment for debugging the watch response
+	# open ($fh, ">", ".git/watchman-response.json");
+	# print $fh $response;
+	# close $fh;
+
+	die "Watchman: command returned no output.\n" .
+	"Falling back to scanning...\n" if $response eq "";
+	die "Watchman: command returned invalid output: $response\n" .
+	"Falling back to scanning...\n" unless $response =~ /^\{/;
+
+	return $json_pkg->new->utf8->decode($response);
+}
+
+sub is_work_tree_watched {
+	my ($output) = @_;
+	my $error = $output->{error};
+	if ($retry > 0 and $error and $error =~ m/unable to resolve root .* directory (.*) is not watched/) {
+		$retry--;
+		my $response = qx/watchman watch "$git_work_tree"/;
+		die "Failed to make watchman watch '$git_work_tree'.\n" .
+		    "Falling back to scanning...\n" if $? != 0;
+		$output = $json_pkg->new->utf8->decode($response);
+		$error = $output->{error};
+		die "Watchman: $error.\n" .
+		"Falling back to scanning...\n" if $error;
+
+		# Uncomment for debugging watchman output
+		# open (my $fh, ">", ".git/watchman-output.out");
+		# close $fh;
+
+		# Watchman will always return all files on the first query so
+		# return the fast "everything is dirty" flag to git and do the
+		# Watchman query just to get it over with now so we won't pay
+		# the cost in git to look up each individual file.
+		my $o = watchman_clock();
+		$error = $output->{error};
+
+		die "Watchman: $error.\n" .
+		"Falling back to scanning...\n" if $error;
+
+		output_result($o->{clock}, ("/"));
+		$last_update_token = $o->{clock};
+
+		eval { launch_watchman() };
+		return 0;
+	}
+
+	die "Watchman: $error.\n" .
+	"Falling back to scanning...\n" if $error;
+
+	return 1;
+}
+
+sub get_working_dir {
+	my $working_dir;
+	if ($^O =~ 'msys' || $^O =~ 'cygwin') {
+		$working_dir = Win32::GetCwd();
+		$working_dir =~ tr/\\/\//;
+	} else {
+		require Cwd;
+		$working_dir = Cwd::cwd();
+	}
+
+	return $working_dir;
+}
+
+
+
+=== FILE: .git/hooks/pre-merge-commit.sample ===
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed.
+# Called by "git merge" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message to
+# stderr if it wants to stop the merge commit.
+#
+# To enable this hook, rename this file to "pre-merge-commit".
+
+. git-sh-setup
+test -x "$GIT_DIR/hooks/pre-commit" &&
+        exec "$GIT_DIR/hooks/pre-commit"
+:
+
+
+
+=== FILE: .git/refs/remotes/origin/HEAD ===
+ref: refs/remotes/origin/main
+
+
+
+=== FILE: .git/refs/heads/main ===
+2a765535b8506eb131ad05ee7fc33fe180da170e
+
+
+
+=== FILE: .git/objects/pack/pack-b36b7f06281af2231a1613c8fb3eab069081bfab.pack ===
+PACK      
+™Nxœ}SÙ²¢H}ç+êİ;·Y"z&YDqÁß
+(ŠÂb‘*DıúñŞÇÉ§ŒsòdFFæá=B@Fº®‰†(+(- ”ª¦ACÒ§išåÊT³Pu¡ƒ=j8‹\U&C¨ª,¦f’VH:REAH•R=Ï5(À—mÔ~š¢©›²,MÂ½¶wç×ÀPÏ>›¶G}~bÂË!ıÌÚú é¦2UD]1ÀDTDQx£5áõ`N¸?¤àç²_ÿ+Ãfƒ¿¾bæÎÎCpXÌ7Ö1Ú»ß¸ 02/›YÖÌ¶¬İl·¼MƒÅÁŞÛÜéÃ E%µ,ëZ®w–/*]†±ø¸[?Ÿ½h ºy
+ ²Âåh™Ñß®§˜M…ÏòŒRwêU¥{¯ò0P¥çÑú§^£³GŸ+Cz2ÕÀUµ»B”‘|àûğ®Áüãbá¼ÂtBÓèÂ2Ì¤^ÃmXõQ»“Y…O×¬3Wq²€Õu±xâµv;Õò1;AÆ9kôÜ[¼ì¯X\¼Ø¸¶UÚÕÅ
+4Ë|¿iT	@”
+º‘41˜ÌsÈÌ¦gòHÄåáu»…­äT+¡F,Yœ“–¶Y4YÔ_Ï›&Â†| mÿáô6+·Ê‹Aè«ófõ“´”°u|D¸Á»d¯ói¥¤°ÔTµ:âŒ¸~-ˆvğ`¥¸µWdç•¨­{fûåÃ³ãÈB+)Hª#/ŸŞŒ†W”–”_©zº«mã¨0|1÷>Ã€88Ìİ ¾=f”&¯i®óa>9ìáæ^m‘eƒlµ¡Â|å’ÃòÒè©oí©OCãÖD çÄ“Uzó{vQ2KeÖ.ÅËä\/Ìs7,–:aÕõ¸âdU51qa~Wcj¾oQâéÔÉÏ6‰`ÆOÃ*ŸT¯}íQc÷Ò®ğ¼ò$“ùGõJ=ÇJ†õî¢º™«¸“ä¾?ÊÛ‰İ*wQ÷H«—vOp»˜ÖöuËÃ+¹×[ƒvd[Å°›£a°¹¬+”4«ëğŞ"?Úú\nÍ ÏùÔê7&€¿EU£ÂoO¸çÏöèşö)Ø»–³vAñö±=¤8=IƒÁ±‡¤A½ D]9Ê/èú¶B¬€M`¿©qHèwÂ²tœ´ûæIÃx?d¿¯_]ş4À®£$ƒ_•oYF‡ü‹.äCØÄèã»ëR’—‚ñdìó_Ù•–ëAxœ}SÉ®«V Ûógzs ŒÒ{Õc&$@;æyaşúŞ¾vYÕK–-ËOcš‚$¡q˜0YÈ¦4ÎáùLÂøŒÅI‡“oÊ2‘!Ón£0"Ìh<&bx¦¢ˆÁÈow’“b8Eá„Á á<ıÄ´+?àYšÅq½–Ÿ´©ûEü5ÒñóÕõc:4ûW^NÅ}Å}û'ÀhöLá,ƒQ …g‘oµ-§)RNêÿÆ~ıo,òO™ƒ?ş/)Ü•;°/ŠÁ9îCú­# ëGyã³xK{SI-zI·h8+mhq‚©¬ıMàd_;"·2fû¦NÚ[Ğ})sÔâŞzé™4T¬¡«çÎ¯æ‰	†{ém?yñÚo5ŠÁÃ¹)„Kñ¤‚€Ìv\´±ÖşrÊN9Â­Ä6Â¼u(1nã\@ÛUã\7Æ=ßÔª‡u¾”‘Lôä}DÓ-Ñ”í-]•ç£7#lO#ãn»¨l4»=NçCô½¾S¯RíúÈ‘=%¼!ÀB¿ë|9¹;§\02éEİyª²P¬C·FSôW•lG¹I©íä¤ùe}qäÂ©0t!®mpMĞwV>PšÎE}9gŒ´¹meó¬¯ŒÍ#Û±ÂòyT?yäVf» @l¦{aÏê‹÷ÌT«ö¨g;I¬]D«dgş½ «*QÖ³æùòz,&uq°Wuï*`d´œnçÏ³/>'êÈÉLœT[—Õm—=Ş½ìEõÑ·uXÉ—¿İÑ½İ9¤t™Õü·Ï!àñŠS¾‹ÇEŸ*e”èÃ4fï÷ZÂï8±{tf/!xf0Õf´I4†í„@âG#FÀ“÷puYÂœ‰ù¥A©ë€±>Ù|ºà*ŠË	=•>a×0×x‹êÃÍtz’ÆŠ­wÏ(.CÖiÒX»Yw=z2WíùŒ±³$SØ½ÊCôÅo©|G½SÄDß“‡WSÖW¸¨DÊ#À9V)şhEåÃgÚ%Âp;
+ü\6'Aşù„dˆÿıdŠÎJë™?xœ}“ÉÎ£F „ï<EßQ~ Y[šDÃnc›Õğ¥YÆÆlÆO?29F©KI%Õ¥TßôÂ I`!'q¬TH@ßÆ¦¼@s)S¤)Ã2¼ÄC1‘ÎSıx÷Í~ ‰B†<4#îÚÇ¢ıœGü¿úÇ?»í«j¦zÎ¾òÇı/Àˆˆ Y	4KÓÄwzo¦	¿€ÙL»9?ş­ıüßZõ¬Æ¦ü-E7÷6pM{Ó–Ï¡¯ÿ“€ ëhäŠ,+ª,{Šg‚Åª¯2©'Î3Ö,ËÎ=Y¾…£#”™2æ«¸á^«8’È¯[4òbp^dn—XÈòeº?“vŠ>ìĞ¦z¼îA®U|>§“–{Ç®1h… B®‹®˜&'Ç}w	Èv.æ÷î±Ëœ16ÜÕy:Ë½f¬Bƒî?#_Õo'Q/u•%×ÅK¾­!c¿ƒø0c$6ÓY½(øÕ.)ÇÜâ©Ö:^¯®¢söò˜¶A&³BÁZD;ˆN*L,yƒğÍ9Wˆ)qsÚxş-elY™7‰2•ºà9C£7$e‘ºú™^Ëge×‰ {çã–ıGU¶ìi¦èŠ"Vã¹Ä%¢ºïohV”(eQønú°&Ú÷Äá\¦å!&€ÃÏŞ½J¿eN¡!ÉİÍlwqd¬»h¾î+e”ù
+ÛCRß4ö49QÅ{}lÖdÏö“ ô¦ĞIOóyàÛj‘k°ÙÛ^3’Ñk´†ñ
+üÓlÃÀzŞ6[7âH&ÅÆ´§!–ÊÍ,57ˆ0a<_·–‡äu±ã²÷ı…2÷­_\ê‡ƒ¦Ípò\š Ìv¯ïqù1"ud)»HKÌ«ÎOL‰Çj3ƒvÅ±˜¡×’õ¨†È"Ÿ,ÒH™ 0ßÏìdtM$ìL^ÔÑ	sè8@)¾—nrÔFKæn»µ×ÜsvÑ×bL¼g¢ÑİnÑ¿w°÷'§JdSĞÙ³ñ‘ ú¡X¿™Ğmí¿‰ ö}35i~ƒ÷ùï<+­xœ340031Qğñtvõveg³¾´ÉúkŞ<£¨³rÓö­ÊÚjÕlQäêèâëª—›Â°/Á]ããÃ~+®=;sá Ş™cM[¡Š2óRR+ô2JrnYË]jTäb|îtfv™W“ì÷S™œ,.¶Bxœ]RKÚ0¾ûWŒ8íJÑ¶ÚC½™Ä,V“8rÌR!1ÄUˆQlŠößw&°»m%¤Èóø^C!ä®µc°Œ¥şü6¹cá¡}„ç¯Ïß ³£ŒUv:¹œÁèíd÷opœš1Ú.Ãd-ø´}3mÑC3¾ÁÙNü>6ntãh‘ádì&øC¼6“Åáš|ëÄƒÎ·—“c‰ïàà!öõ}cñ8“t¶˜zï-¸ºØûK„É†8¹–0pc;\:ÒğŞÜÉİh}¶‚^: 	œ|çôµ³­óe?¸Ğ'Ğ9‚Ş_"çüòñÅOì00Dp¨{öú©n!ég
+4Ş#
+T¹öşô¯şp™0ÿŞÎ;ÇÈfÆ_¶T¡ñƒ%k­;GÂwÆ¶š½ÿmg/·«>¢Ô›:Àùóª÷Vè›a€½½†¼oó—‰èCÄÃ»f€³Ÿf¾ÿm>!ÿZ@­VfËµ YC¥Õ«ÌD^ã{‘ÀVšµÚÀ	ÍK³µ^îà‡,³ÄÏJ‹º¥™,ª\
+¬É2Í7™,_`‰{¥Â¿®,¤AP£€ïPRÔV®ñÉ—2—f—°•4%a®”×F¦›œk¨6ºRµ@úaKY®4²ˆB”æ	Y±âP¯yãT¯I¤ªÚiù²6°Vy&°¸¨Œ/sq£BSiÎe‘@Æş"æ-…(šÑØMl×‚JÄÇñ—©J²‘ªÒh|&èR›Õ­¬E\ËšYiU$ŒâÄ5ƒà^)n(5üs¡÷¦€	#VMËdñ}ø‰ıº§QÙ³›
+xœ\ms[E–ş®_Ñ;©©HF–Ç¬Ù¢Ôd–y!°µ•«Xr¢ÁH.IqâÅTÅ6Iœ	Ä„0@e€˜>PS%Ë–­È²\åı¾HÁ¿dÏyÎé¾}¥+g ‰uÕ·ûôéóúœÓ>b^½v9oN•³×Å+æ\9[(æË‰D÷ón£»>Úİëİì6»;İNw‹ìÒÏÓİìîôÖLo™¾Ã3ú·Ó­w[İ¦énĞàZw›´»ú¢fºuÓİãŸ{Küo·Õ[¦iêİFÆt¿§——z+ôí2OÜ¢×ÍşÏ4iÍMµ¿cn~a@J§»ÁsÒÜmQã4ªI2‘¡56ºÓ["»Ş!lÛQ»fç
+iÙ¥OOyÅ†¾Œ}Ókô_§w[÷^§Õx—Ş"ê—{Ÿğ;¦»NÃ¶Aß¶î~·w¯Û6ŞŒ-&>“H9bºOh­MÛÂNˆ·‰Ä¨ùÏîƒŞ=Ì{“Ş~jøÇn>,ÿWòHwİÿn4ü.…7bÊø€à]ïôîğÓQÿ©Œ~DZ ]¦$zš²/Çô¶F‡ŒÊ™çkÚç2NøcZâio‰ßlö?”±ßÓ‡-ú²İ»gÀªušz¹wé¼~7ê'o~ã1‘N¥®'¿Iû¿ÍgÅ‹úŒn‘™>ëÖ…#{8^å¦yı­<C-æ»Ñ™Ò¼İ)3‘&í}‚³}je6I»lÒ;eÒş2%|è{EY7û†ĞGL»Å|	í­03@\Ü–;5<nã_š0dà±ŒÿN5‰âU~£÷ED^jÌOR¡e§ù5§İM’W62™ŠÏ7”É£öT"!š1L‰«Õê\ejlìıB%?û~i>—¹R¨^½v9S(±%UK6ª–lL&Ô2q™ût*Û–"ş–öÁòc­’ÑjÆxÚ:iÃ&ªÁaÕdÊoAŒj##&I?±öŞQÉÁ<¤Vü8ª„ÎLae6t°‡ë¼ÍLV*•6üdÀ$N±áÑºn34V­=†m¦ŒÄn…ô™hëİ"ô°9ëİ|‘'ÜÓSãİ¯1[hù(kíí¬$­”òjRë|”¬ÆÄ¨$Ûeh'³æ!5t~ğœŞå€ävÄ¨êš»*Ş}ô(Ûêæø©aób«LN¦‚E«nıÆ:0p½)[qGàmäš;ô?¤½wßÍ(cn©÷Ö:Ï¸KóoA"ñ'•agLÀ’8òÁ%|âqtV^wYğFFÒê‰ÈçCÂòª–UM1FúzÈnm‡œòcúú>yO|ÑZá¢T,šr	+·ä-U]p„øI»âE—øtÖùøW5d+½»Dâ-]SY3^ã‡-}@3J  á¶Æ‡µ¦Â&>_·¸k¥!cmÊ3œqù'¬zİé}Êì`‚ÒÆß ‚Öt
+ÈÛfÔr„q‘¢Ø0ÖÚ‹»jÚ3X|Gx
+¶_ÕõX[ÍÖ—Ö!iAÄpÄ£yŸXcˆµ;(˜O¢6ñ¨Ş'ğeNtÍ=£•D"ÕXÊÙDÑz*­½6ÂL4!Èô%>ËW:.E$ıC¬«İÜ&¸ïÓåÔ(ûÄÏ6”äîŞZÏÖÇl–z 6»·Ê›ÛU¶oó1Ó¼1â-nã»" :EKnDÿ÷«Ibà×¼áPe,Å05MÖSù,_¯"Æ¹7H³*eÃª¹3b‘å8bœˆ«ËLŒ¦‰‰jÃª¯ñì¤e¬±”‡³ê4¬#‘ºËáSÄyQ–ˆ)iòÛŒœ»‚;¼‘Çê¿G3‚ 1m]ˆ}ë!æ#"V ër|)ïÁN“ÈÑnco>Çk‡¥5ÊH5ÌLp³ùëKÌxŸÄw›*Ç™ÅƒÚ0(ƒºEÖ›cÖÚi¨ÒÅ««³Jb ruÂhQsöne–2ôÏQÕ"^~Ë«Ù´­	“
+WÔ‚ëƒ4a–>1A€Ò‚èµCWä|„çÙÔŸ¼d&çn¤²£Á#§‹õØ#UÈ;C- ¸ímëXå`7Ä·°C‰8OÚŠ•ŞnÅŠ/Ù‚¼Æ’ÀR¯C$q[÷lEÛSú øT,_ÔD­ÇXÔtØàš>¨N:Œ	Dğ (ÜDL¢ò4lóğßÎçZV9ŠH1×ÎùYÃlˆ½»4É23a;`]e+ã¯Îíê½•qp™åq¢Ğ§İÌUŠTjìAÖÔ|óÂá•›Fê¢¤ò‰Ä¢ûÂĞ_©-³xÅbbqq‘Ç<Ò1àCfK<O-¼ÿ®_”ùµÜ1,;:gÓ$ƒRñÊ9uÛ	õÕW­XÓ”’eú,â%¼ôt@ˆcL‰Êí!¢Še¾$™ÚáøÆ.b5‰¨G`%oùÉšîpWDkÄ/ß–æOuïbÇÖ)µ"+Vr‘ÌPœ­¬	¿4˜@T<şÊDÉ~@²>ˆøÈ&¥FŞ»_!Ë«…:¨iZØŸm‰¨é=ÎµXlMˆc ![4!èÁœùÉÚŒ¦Æ<V>ƒƒÕ[(mq°Ëó§ø›‰oÈXÄ– œŠ àä\kY·}lb§äƒ§„ :†³{ç ûçrÒñ‰J:F2ÓÃ³Ÿô -tjtÀd4`†ÄFNlÁùªğ5áUPª^Rd82¢ÂñXrIL|²Ê.iß$_ğ[zgË˜2d{|şú„û…÷S#]U„F³_ ÿÒ‘@POCŸÈ˜¬ƒM°ˆ˜1#€äØ3`ÎŠ`¦"ş»pÙLXğo"V6ÿc(“˜ ?„"İÁàÊRµ÷¿‚?!A±ÉwS²³4Ûm[÷Eî&916™ÚßIip4t`Ë&ïŒu?<fëXğ­8Sñc{êJéUÖdX0vnDüÑvğ
+DcÇÁYŠÉv$ûÇPÀÁñ¯H°ÏøMÒBİãJ ,Æå!¬Õ DÌ_£ÛN‰Ò?´t°?áüÓHÓ÷H;b±xü6l1"IëåÈœTINï¹ƒçúÎúVâ8SİÍßåT)rdµgG{3DfRf›¾~Ä~‰¿–ó»q˜¤£R¸e3ánSW}â„·ÜŞÂx)#ÄD·["ªšŞ’gò‡Ç ò~½<	§4áüı¨­mœ‹jXÉ“™’â J)ğ2†ç*R@ü
+DŒ^ÛÃºí_-²Ãä!.¼¡ïÙŒƒ’=/tñgßcÓ'—‡(R“LŞÓ^ÚB«[ü†}ß†Ê	¡Ïbæ½ËÉÅ¡áB:NE‚IQ¾Ócó²»Ğ‡!”_ŠÄƒJ4DÇY ×P¼ñ"XDœ± $X¿ëmƒb]œ§!{ÄÇÙÓ…ØÂ?‹„ğäw­H!IPÆêúZß/°ù>3•qÙbS©·ß`Õ ·B’a‚J5[Ígæùë	m?[cÇüèA²ğhİM*]®•AuÀáMEÓ”yM¶ÁLEİ\/•gs£8O¶Nê[!d·ú°Æ†ÆÚJã[Ñ¸PcH#ÚQI¾nŠ¦Ş‚-kô¬b”€¶ô–‚¶jl´”(;h1¸zi&@öíægcJêÖü+ävÊŸ»aÃyüåã¸]ÿ=ƒØÊ *5¿ƒ²İbÍ\€oşÎÆÄ·±Í§]?Œ:Ú%'¬RÃTá°òÁ¢ÿ½Ñ™¿wòÁŸÿGæí[,¢ìÃ*Ï(2p!ÌZD¤ëlôVi³xq˜<¾_³¤!Êx¦QÈ{²8’õSµ>,Ç+ªì*rÈ6ã(¼òpŞùíÏÕlE“×Ÿû;¦=ÆÉíAc ¥J;rÑKV!ÅüvºëSıÕÃŠ'ÃNJ¡A†Å<ˆ» ŸAD¸iÈÇe(}¸¼ß]1á ‚Í›öh­æO‘?¾y˜(H}şTöîßÀæ?6à…GßÓ[^?\óU šÉ®6:û"ƒÅ—Hq¡9eNüŞÁ}~„¹kÏ4iw8d¯ï<Ÿ¦Í‰}j6@ŒpVkXáY×#9!çØf¯M1¦+Z¼sÃ‚˜r’«˜‰½ñ1Ò=1f0„Ëê lÂéùœY]J“À©–)*	‚ ‘¼qés°ú¹™¾x‘>¿í>¿Ì?åöë™ ŠÕ0½‘64LÌİ +a['QiLßPyÛ…Ì½OåTù]‘Ó#ò]atUb6$K­5–|Š>xc÷y^İIä>J&§o`DfÊßM*1Sš§1ûÛÙòt5[L&ß›HQüšKé`f7‡Ğ‚‚-E©ì”üú4ê‰[ûXl“]A,Ø/Úğ·ƒÔ˜×«§í|2N¼–&9£¬Aº*á¡¶Ø&À!ª¨<ô6¡)Nı‘|t´²²f!ÁÁlN,4ØCèÌ¬ê¤ÏP¶isáL…Oánï º$É¾rô<9ÎÌ}«¢éÒ¡«õEM‡®"$´Õ{®)LûÓI¦‹Œ“±„ÑÃ–³¼Ê?8”ˆ%Âs™OíÖ%ÑkH¥‰Ÿ‰A6Ä¦ïÆÓ÷µRºô‚ºEUg-öÈ›é¢$ïãõbĞªÎ +mƒÈ?[ûFu¢÷›ªßIÕ4ßŠš_VÓ¦?{'Ûµ kˆ#=h¸!³·ú+·^•¢)úöm_—àŒõêàĞm)ôÚPâ…nC5%4şe“…Yó ¬[ d
+ò¼©EÇOÅä è"ˆĞ½!‡=¼& b´äÅƒå›´è…K—KÕÌµ³ñwå‹é<“ïø‹÷ä‹Qt<£e‹HçÀÉHå'ô|Œ:ùø{P¡i(ìf—…IiŸ¶JPï=@´¹Z9Òúe5“˜ÌXÜ„2iÄ.‘n+M}é=„ıäéxbçs&·¿}qì=ŞÃ‚<”½Ñãwé1g°Ñ
+0¦[í·Ó@<Õ©‰bÂ†"Éˆ–LŒ^IU™Ğz´1…gåSq±›Ç1Ğ%¡ç2D:9 ƒHÑ‹±­hüıÔÛmİ•¨
+…œˆ[ŒÂğ'®}Î¢;0[MñÎçO›ä©·ŞL™ƒ/nöÿ÷eËœ.VóåìtµP*šä\©ÀM~>_¬V†½‚Ì™6Ö]ê^R	óÿ|±üÛßı²ıŒwßÌV¯šéR9o¾úØß‰n£soç‹¹|™xœÎç³P¸}ş´…CßÜTÑ·ŞO¢h?Işa¾¦if$S,bDR[>ß(e”dkÂdx'¦ôzn§J×‹¤o–æóôÏù9úëÕlq:?ß¨ÙÎbY4 .ÌÈP?u’ĞùER%‡wa£'²]Ø}ÿÅ”{–±lÓ²¯& ¿~j´n Eú&Œ¸²kìûŠ tJ7[!ËPÉ_ù€å4P#Õım6ô¼´;yÛãqGÖÄìc9.ÉiÖéÒs×ªùÙb¡rµP¼r«°ÙqßÌrYæ:?¼’¯¾^š?]œ)ñ§\9{ıt.Ÿå¶Mfö·!º†…!²¬€Â©àzÒGO
+L÷'(~Í?Çt´Õ†W$8-&p·w<B±Ğ“&vÃã³Ñî@£0$ª$ÆÆ¼šqâCSÈM™£sÇRR’6ió~¡ÈOfÊùüQŠŒB(+yˆ*HQù¨ù(¹¾w½^’c¶
+Ï–=K›Ëô=Ï—«…éìì”¹\*Íò“ri6Ï#«Ùr³V
+9YÏÅ‡jiîhâ#Ñ^YDßBîKkRÜ)Ï9Ù$6”+PN¹5ÖğjB°âµ>!|äÎÑ ¤;ÌªÁu_{K$L¼À¢Ëh+£P™ÛİéwšÑ[¡¯i¿¹ÀµP çFOÚ—tø8W,wÈ&ºBw¤rÄND˜<Rğd"ÕõCJÂ¬ˆ,µµ± –À‘‰×Ñj!J—z7ü}°´Ö6¹§(µ¸ßÜoûbÈ´ZôI÷CÛ «Ÿö:t´C‚‡®¸2ŠZ®*9ƒqfln`‘ÍÃÑ×q¼!i3fº>¾ÃØ1&±~Ò7ùa!à·c‘ i68.à¤
+Óœ&Í,Ê<ÓÕAü‹‹‘¬Ÿ9ëãî2Ó2ü2£/zÂfüFBG‰åBLSZƒÆ3b&T2#mïØD¦ZÎ+³4}’‰`Îàß6”¾cc·8v”ÄÎ¡¦Ù=90«€KçJ`z Òüuw{lÒ%eûÈ€hÓWòÚeUpUıàr¶’' ·ŸşH–kÿgdmE!¶œ×lìïXÀÛ¦THèˆqšq ¬¬tR\hÄ«Ñu"(H+¬ikÅßïÆú|x©é\k
++ª®M{”h÷~*ùUK´Ê/vå’Ø„CK4ü!íA9Xé|Øõ„Ø*o\Í2Şîˆ?^Š"/½5ë3&ù/°é©HèY%‡E	Kè–^Läg+yÃãaO_2“©èPiü‘ÎÖ¾d&Rƒ“¾–»’÷‡³!–‘‘‰Ùê¨˜?‘QÆ°ovĞygÁè¾ÕŠiËUp\ê²aQ”uQ‡Œ9_Ì•)ó‡Ú6!Ä²¸ëñÍRƒÆ‘’–.§ÏÙïªWd">ÆÉbí1Šäs%”¥^²ªÕ¨h}–ŒXàÌR“¦µ1å”î¿Ÿ}ë?2•j™BÂÂÌBòC±»•)ã›´´‹EísûÙ|äˆãÜ>SC«Mİ$yFsùÚÌL¾ŒX9¨dçóv'"ˆu1Ğ»Úúı`÷àì§úxSzÈL6µ—ü;úÔëîWcû”'’à’íœ)ÍÃ×³iO{¹©^]Ğ~Q†A£X½Áeå6˜~“«7aQfÿçèZaGäãP•
+Í®ôÀÆéë"‡Úèõf~˜Ã:½cÆzu»Úö³è:´_=911w½nrq%Ü… a©¨Ñ??C‚¡g$ÑôŒ¶®Úrô7ÂU%Ø’VÑ˜~pÆóğ.é¤´I÷-’è~&Mea%ÖÒzj-¶í	î†yS1­ê6‘QoáUÅÙÃğåŞ'äûÙH’ı‰Vk÷
+Ş	ã2 ®¤]ş¨B}—ÁÚ®mÕËIÒ%'-šµ1ÔUĞ	¤’éd]áÜÉ.M$¦è#®÷„L.œÉ,4'é4øDşú!ÁØD*‘3ôzÓI…±GÒVşNLµGaò˜¼˜6ï¦Í{)±k‰|-®ÉdàK\˜m’Ç½#ÀÇ!Y44U<ƒo»'Æ&ÂfÁ¾{$^»D#‘K%öQ×50i7¬Û–J»'ÇÆ-gÇÇ&-ÒÌ-à®*ºo#d¬à²Ãó\Ö•BéZ¤º–Ô‰«©yìHW•§lìÁ·#Ñ¸ÕÖñÎ…[;úKJ“KÕKJ1+şWÙ«¢TÙ†ÌtáŒ”ŞC°¹Éq¤ôõ]ÆHæ
+å³@Î^6“c“
+ÁÇ%sŠ]¢ù‚1/§`A°æ‘‘ãcÇÂ²uiR)Õe˜f±
+^Ø6Å¤¢z€›6¬Qø)‘÷6ÿmÌßpjmTãîE2?„ùqMÉ ?W¹4W¦ô:5;ˆ\‰wõeŸÂNM½¶¨°:0ŒÉº6ëÚëKÔt¼);]½Fá”^}AüX÷“—._vŸõp(YxBH3åoÌå§«y®×#ÍO2ŒÏe
+Æò§K•ä/«Ñ óèn”ğ„eèYtÔ1á‹L˜·{,-f3İç¤Ä&Co¾Ø6<ïşÚ¯¸A^ıKs­±Œ6@÷WõÃ;³’>~VY “HL¶xe6¤ôİæÚ/«—Ş şÓ?R#ÿ×ñıÚ"†Yæ`ÄĞªRŞvüÎ-;%ºŸ‡…Ñ0v5
+“ïƒ»«ã¡é¹¸,G)Ãs4öÆ½^ÚúN]WØjĞõ.>ø¿¯Î‰›ñD¿%%°¿EÂı†
+¿XëükÄEºŠ4ŸóÁ5,åîv;SêŸ"-|GÁÏ	
+~b;ıú\¯"N…uÚbÍKÏ+üˆvhI\oÛÉz‘.Iù×c¯ÑÈŠby“bœú.nGZzÙô/ù%Ï¨§M¡Aë™–ø7˜w©¬PÆ<0Ò•!ımÑßT2$]Iaœ«Œq$äg+w—P[»42›4½>û®÷`\İ '½¹^‘Öfş­kø®\±ik]ÄïN¶¡LßE3qv†LQŠaÃ—TjäÆª·wñmş¥ğò7Z8d[»Ö›nTO[¸†´‚šàÚ\.‹‚È™l1?ëRåréúDòhïâÑ´™›®&ç3l¯–Ê…ÿ.IÊÅ÷£ÏÒf<3~‚¾)L—b¿I½ÈEƒßöçàöokÃ{ï _¹>„Ö‹VoĞİ%­–*à5ôUËmÎ^xåÖt©X©š7_¹xéìéS¯qŒ•Æ§soá^)ùpáµ·Ï~õ•7Îò£¡eç½Ø–S‘^L™çÇÓ¾s¯\‘È^«–^çï«åkù´üõÏ½ù†y©P¤¨ŞÌgg¯å_şİóã¿ûƒGÉc'Jû„­1hÖşhš—¯?™B&ênf‰MpädvfæòÉa}<ÑŒÇçNæNÎÌğxw;5$Ö œßâ5^ÈÊ]¾{©¸ÜßÉçu¥ÈíP?´‘‡^-_¹œMNŒs$ı5qâËùÉ©`H›LŞÙìëògßÊ½½Š¢£‡]Àô÷°¨'ú£EÄéŒªÙ¹QúßƒÄ(°~~Îi?ƒWò•êµr‘vŠ*¹¨7SàLğT9;SMf2ÒáPúûÂÖœ{ŸL	,É£§Q­–ÑŠ™{A^~cnæß4‘ŞÔ«d¿\â±BSÉ¶Ä‡M¡¨_¹‚ˆ*jSÏã°Êf‡VŠÑpîÄÛ M"L”¹T|AA\ÎÓ1=€qªrTq?À||îx<Eùb…Îã´W‡Õº¶½'âıòŠÈo;ä‚ÎdFúŞı¶ÉA8Ö^ª°İ6İØ§èÇJXÔ¯	”³‰‹nÑßhæ—UØm38[àXzt¦@uvn.ÃÁÃ†‹¥\şÒ¥ÜµÙ<—ïCN°i)d<BæŠàÚ©+™Ex¦ao­Lèı€7¥›m_Äc @~µ¿‘ê=oJEâÏº/)m=H)üEt’UÃZ"ÎAï]/ò›‘8¢A^İı‹¶°aÑ6 ĞñWÄ÷ˆ’–|ô[+mSÓš²å©+yòï|áSFÕ<,½ù=1
+¼rØ¤  º‡kÍ02½¬õŸhJ&q"ÆÌEàa¨íû¿%>iIˆ”6X¬şº0M6GTŒ=Ÿ‘q¿¯ÿ‚”©W¯¢7¬¥ Òawg2‰°JBi”êˆJÔäåó§Áş$Ì•_ÔV¿µ˜¤0q’—|…" DÒ\àewâ ¡;¢òöæÓ®ŞFq9ãSÄ£Ø»ßÚ:,2É$şİTUÿ¾éxœÍ}k“Ç‘àwşŠæHk " Ã™áh^¾drƒ'†4)ƒA5º3½Ä ±İÌ@ã‰ ¤“ì;+,[¶Ï¯÷lïÅ}º¸Jmêa)Âû}cæ/è—\fÖ»ºÀôÅÊ–]¬¬¬Ì¬Ì¬êìµÓWn^¾ıÖæUo'ßímœZÃ?^Ïïo¯Ï¥Ã9,ˆüşìF¹ï;~šEùúÜ0ï6–çDqßßÖçFq´7HÒ|Î’~õ¡Ù^æ;ëa4Šƒ¨Au/îÇyì÷Yà÷¢õvİÛõ÷ãİá®*fQJO~
+úIİ İ8_’Q”âØyœ÷¢ËÃNä]Iı½¸¿íİNı¸¥kgYİ©µ,ã_Ï{Å;€‘Òí¸¿âµV½†Ğ~w’ıF¿C$at(Z¿S?Œ‡¶0øÃ/êEA¾âõ“~´ê5ö¢ÎÃ8oL¨Ê“a°Ó€Yõ’¡¬<Hñ:E"ÒŠ×nµşaÕÛ‰âí\<á´»½doÅÛ‰Ã0ê‚~ğp;M†ıpÅ{©íÃÿº$Ö…uhtıİ¸7^ñş`Ğ‹Ù8Ë£İºw©÷¾î·èù5hY÷*·¢í$ò~p½R÷¶’N’é3¿ŸÁŒÒ¸+¦ÿI/IaÌ(‚9°‰ùA'}}^/~äg€Ggƒ8tzIğˆŸd1kİ÷£px¸ŠÖ¢Î¨¹›„Qcà÷5ĞÁ0Í•íÔï8Z6áß>2†»Gªì^QçæAšdÙ§Øg£´ ªf”'èã÷‚êò`ß;ãEıQ5ó»QÃO#¿AóÔj«^/êÂÜ¡#°à€¥(Aáh6 pÀ£¯áµZƒıë"8£$ö‡y¢x¥±/¹…ZÊ•èö"€ÿm„qqzÃºw±¶}À~A`ôàF éU\ºd;mD#ğL¬PÔéõ:~ÚàØç;1ˆ¤m¥8¡t–M·;~µ½X÷ğßùVİk5—–ù”°]˜&øŒ‡¬3L«8e)QÚ0$¿@JX,éÅ!ñ<Œ„ÿ¾J#..òÖR#,Bs¹†Un½æ½ô×£~¤ãrÒÈ~ZÊ³DZ?P*ßÆ…"¶ğ°ê §äÊ¶›‹¬_íC¿?D9oêóğ/!ø²ÿ7_­™Ôm¾ã4ÖÆ~UúÕWai€<©î&éîŠ7¢4ğ3w/Êqyq&DŒ6cBÔ› ó<.çq,nú§a–Çİqƒ«ÿèÑèDù^	®ZB€„áŸüR«%'ôs”9ğ²ßív–™€6£Œºåe‡TüŠç~/VÊÃòâpÔ?Mö„°Š•FÊ¶x‘ŸÆ>üíwAÙÀÂ~gØ†‚lÕÛÛ‰óˆÈ!Óï¥ş@g2I›‰¼Ö¼ö¬„d‚¹¬ ×å`'î…@¥7iÚÍ^§§‘ø@U|¬$¾ 
+nƒHqax“Ñ ‘<Ô:wéUÙñC£v1XT-"b/Õm'IX¶ÒÖx¡êU6êcĞ¦[ˆ7ˆdÚèEhæ”1hA5Ÿ'&>‰.• ˆÂà¥]PYFy°³ª4l[‰à€fH™ŞD}Iÿ.’>˜Ÿ¨7Û­g»5As¾tÎ?ç%eÍÜ˜Sáş X¨-³†Oğ¥,÷óìÎPÓ‡l)“«(#ª›ŒºQW´–8U“;ü<Im…p«~S‰è:”3ªÒÕ\dÄ´ší¤
+·Õ¤}¿T­áÒJ™
+ª8êõâAgÚN5Mû—Ï¢d“Ì¦±µš¢§Zú­hY*jÉ&Í×æ¤¼†kïD·Vì¶(şš+ƒ{~Im{¸ïÂÈ!·,°NŞ›/ƒÿ3¼ÜkV’Ll1 ÅÓÏ­mÚ!Ê'ax’wïùÜlåöšæ†øƒÆôî!„SÇƒÀs‘Í”L8XÍ%,E:75>W›V×&ú#Ül¯hÁ?ï#wiÛ—$¢([ò_õJˆ÷B?÷Ã¸nÁıøİî²¿à@v»¾¿äO¹>‚0WxÁZN\Ã–Äu'êAœÒôãkÆø×äfË›]d²aòãKç–Ï-+63ˆ¾¸È•AJCßoµLÕ)-ÅçdÇY”@ÁˆR\&¤²ÿ#ÿHpFÀ•²eXğ}ac0ÍtÉOËŒ¡¯[Â­kI+¢åœ
+í|í%A'©0 Äk£ÎEr+ Óe©ÔtaÍjµââşÿ2daiœ3ïÏûçM+Ç½ƒ‹uét¨lDG©cçŸ[vi]"Ä9  ş»@„8¿8ÕòÑ•ù‚f‹®İdÄmÀ¡¹Àt¿©BES>Ù¼İ<ïj®[2¢+ŠdZ×ö¬]Û“[Òævnæ*¥)˜ËQª²u«¥`\Jd•ˆ­/¨ßÌ:£Ü[3IõÜj¥hjÍ`MiŒ3eËÓÜ8Ş˜)©•~’WW {†5Kg{/ƒŒã¿°¼W©™pD_èš å™Ñò<§#40T¹‡ZMëy’mÖf\É‰Hı%£[À,‘Ğ®b½}°˜}X^¶˜H’B‰ezÍ·,ƒ
+ÕÀ¬lcïãrsÎèÛ—2IG›QK}‹Q“ZYóÉè¹‘ïw;Ï8UaáÎëû<{šiŸ—ëeOÌ¡ÿ¸yäšĞnòÔßŒÉü§@ÎÍá8ÜÑ¹lÍL|Ñ2*ØiKK\  jƒB,nİg(ScÉh+FeföÙŠ&Ï3ÚQäƒGıĞŞñ\7¯9°³iaOd’Á%¬o!xZ°2İ¨LQN%f¿¥³Ğ.¼	ºvj·¥§,4³¦Ublh‘[ei¼€·\O®+N²iaĞ–2gô©7³Œ™Ú\£,gwxê¥vÔæ—, ›x´Á™}q©ev¼Úí<y×Q‡š†sçå©ê©@:àá‘IaA–j¦[†aÑ‰±ÃõK¦„Ø™·6¶óºxsYqôöB·)bdÁ=çPó˜”Ü”Ğ€)K§¢<å÷—Fç%Ny˜*'³<(°FÒ«kOCŒ2g†‹~Ëqºà Ô‹‹ã-›uÌ0µá$÷’LøÈóR–íè¤â§¶3d3)¢P)[g‡‘ka\â”ó—üÈ˜_/Ú]”Uæ^.hd¦i/ÙZvŞ¤&—±H„÷I¦¹a|iÖÎòÃ÷µ³ü²Â~¶‡ësìçÜÆÚYökãÔ©µ0Q;`ÃÃ{*ÀRÎxñœjçÿsµ>'PÅu ¾ì¬ÆÄémı¯£?}uüïøÑñÏ>=zrüÇªgXÂ—öxµ
+à÷†hwFĞÆ=¶’=œ™6<aÍm|÷è—¬‹ì¨~L˜çÍç™å¿}sü££/zÇïpôÍÑçG'à?¼hì#¼òìø‚süŞÑS˜Ãã£¯	6†üd‹„=^ğ4o'ƒçŸåG…y>áyüH­”œ,HñÉæŠ§c/xEıŞœMP¿wâAøŸS¦ú9^Ağƒ1†Š8Dr˜…]yTu†°sôÍZ´ç<ŠÊ²,-–G«²>wôÇ£/a~rüŞñG0…°v–™
+ÓcŠÛ ÔQ?a\ŒbxüáÑÓãç6XÙÌC°»Ãü÷ ß_=f`Aân‚Õ9Ä„¯ED±à¦hò-²äÑg(‰stÈNÆ1Ö‹í¹–Ë8$R­¯Ë¢£?‚xLzàÿ’‘£'$#ßØ\¯ƒeFƒb…r.™yMe8°úi¨Q±òÎpåxn¯ìôµ•càáš‚ÿ˜2ÀŞ}ˆSZ<f:Æ¢Úç%4NzBşşş7ø+ù=X`Um¦I¹Œ¤Ä[Ä~™k'%î†¹—€EƒH—}}çõ¹ùÖzësí…*âh ?ç<½!t\j	pR‘€;X))w×ç6–Zz×%(Üù<°Ğy-Òò³£Ï[½×nŞ™Û¸8UV´ÉóícnÂè\B“4~'éÃş¶ûG°Væø+± •XZ æöN’åÄß Ë=Auü@üÉÑğßûGŸèßâß™A3å’Àÿ'éÙ÷şö¨+àk‚ûè$ãaÆé#:¡áeŒHâ#ÍØœëüÿ<ûÄz‘ŸšÓ“ë)› ÷¥cFáĞ|ğ‚xoGLsg…ÊÀ#­ü)Ğu$f÷¼htE–(Kú‚2_B´/ kšô¤8÷âµÎ4¥ÛÙğ`o÷Hå}Ë‡€Ÿzğ¨¬Ê>3m8d¤£ošŞÑÿ%	öL×|ÅOŒQ$Íµ³€”…ßÏ§/¸yÿşë‰Ê‚ÀààBéğgñÌªEE‡à]kâ˜ücöA¬A”ùaÎŞ¼Ñè3çj`SøÄE{2ó¥ÄşÌƒ>?Åµ?úÚ#]ıîÉWøÌl"ş¢Ğa>f-`¤ÇÄÛ?ÂÉ¹ á>†êaĞw?öh0¬èŒ'ş‘hJë=Ÿ ZŠ/€ZM„Vú|.‹4„ñq?(²A·w‰÷?Çä(ÃQ«Hˆùl$Áqr„Ó_?rqèÚY!K$¸/ÿFşX«*l(¦H?ÓÌ~ Àû©š&•)‰Ÿk³1í®–iî4ş|JsæöÁñÇ€ŞÀ )¬òQ¹i±BlV #œA)å]¢Õéä1°¢?Ğ` Ï ÅŸàá§œ¾ÄUØüKúÏaÎÂÄá/uojz"V%ôSrl‘Ÿíy
+ƒ…kƒo]vGñWl lC£€yí`’ÿJEŒşüº¾Ç!A!üeTƒE}_—ş7¸S»ÿŠŠæøİâÊ¢à!­ÙLhÖÇï›ÿ)
+ßñ‡¤™P1õôØaHb¾(L\™ë%°	î7¸>%"¼Gs|Ÿ(†Ê%í)À³´o"„
+Ÿ°Åcc®xLËBP†¡ÁZH«¤5?dğp™°†0g™±q–ÛĞI/'íØ-à±wÃZßáÒ‘}„S¬Âhÿ€ŒõŞ4•¯Kä°°OZ6—"0ò¥¡úT†ËçZÒ (ïÒ&şÄ©èş $Èûî¿ÿo5ÆŸÌÁQR'ÿ[byÔƒ¨¶¾eöˆ¶< Ä¹+L51D ¨ÿJû,Xù6Ü4‚¹/	)ä\]µK}€(yÄFşã4U…äk¢Êßş¾7ãÜ?üÄ»³ù·¯œ˜üîDĞ·ÆX‘Ä¹´ş	ßšaèOW<
+¢g#ŞÄeøŒ˜‚`3™Ÿ¶F|3rCWöÆÚ ‰+pï¤=¸âø}f»ÜÙ4¶Á~Ó…n•«Ko€—®Áıİ/¼ïõòU¶Y#©ştv^÷t¬^ÉCèóÛ?Ø}&ôèø4Ì¯½ïm—vÑEnÂÔ™rıJI©¬9c™DÛµˆ½±à<ÆæÁ ÃïÑZ40„Æx*m­/,3­î1>@ËÄoè/i/{—	×4&?ıŠôİS¡îlJâÍqùöÄèÅ-¯¹às}Ê¶ÇØ†ØÍ¯÷Ä6mÈT©¡Væ9ÃzEÎ[˜0LŠä‰$ƒ|R*|[/öoövFa6TáÒ@õ‹ğh—FÓÀeËX`ftAšß’®ÄøÛ·lHö?¢'s@È|Á-|®ØÛ¨ĞÙe|D§q8Úï!'¹YÆƒ|ãTµZóÖ7èÔª2Ì"¼%ye¨ğtsïeoFÂFaw£~ŞÜò«½^_«qHÇ›¬9?xY÷^®VØïJ­îù>±gì×h?¯VæÃŠŞ™»·¼;B ÜŸfüÁè)=~ŞW>coj`uâIï¯¬zÆş*êÂjÕ³ƒ…19 ö€½õ“~YÇD½XCÕ@”è#¨ÛKÔL>"e’Uô¤÷6"¬™QdĞ“.]íqzògZLqT¥WRïˆ&ìÉ¨ç'#²Æä9‹^YŸ7ˆ6üû‹£­ªˆ;H#°G½…<úc-ä#ÀË´š;›…¾x ¥·€GÙ÷v2ĞªàIAõ{z'¿W€›¡øĞKÈZCB]¶Û¼yıÛ®]¿ı`ÚÌÏ×yÉ­7.n>¸}ıû×nCñÂªÕşÊÖÅ»Ôa±î]üÁ›._ßº|ã*•´Uã×¯¿ñàÖÕï¿~õ„Ò^®{Ğñûn_ÛºzëÚÍW pYk}ñÍ·®_¹ŠÖééöM$Ü<{¸suëöõËoÜÂ"³×µë·nßÜzñiisÃó\qk&¦·Dïİ¯{Y´½É'dîx¼W©{aêã€ş°×«{}P@×Ã¯]ç‡é#<3—Â×=‡«ÃK*—™FYñº~/‹êTö}Ô$FÉ5¦7DëçG¯'a„ÈÃ˜?ŠÀ~…µÄwĞW¼o9Õ=¼MæÖùõ€,ºK¥øëşÂ£|E¯!êho€zzàa4j²)9CÄëE¹wÚ ŒkìÏ•MZÙU^Éï\Ï®${¨ˆø´¶£,¦ÑëÉ(
+E©ìâ÷oñÕ`DÅS½D[6Pû›8‚ÜOlıšİ¸VúM¬^ÇVããÓqcÁWl YõÀóW$Ğ*”6ıë!QÇ*í@©wh‚Óüã`²]!$˜ˆ¡”QE3Mz!…K†bìığ‡|‚XÔw8»eå`ñU°äSUPğÓlªn˜t¶àªQàN
+/G=¥ÀÅ™˜ímµ8@knH¶²Ê«ávT‘¬ºg°'á‰²ÌŸ®ã-8(j´©]wØ§€¼—ù£ˆØ†gj«Š¾jöoİ|£‰¦M;îs„ÒĞYPW&98÷xNüW3ëÅA„W½Ïxm³Gs0ÌvªˆYNÍQ>±,îzUÑ¾õ·óoC×ƒx	[»wójmÕ Ôh°60—šòôaİDpm]½_&‰ØKü‘5‰çw‚LĞ¡OF§"4Â¶üI¯—Ôä-Ä³Ş†´TX^¦}¹Âi†<ÕBZ±JÒœ¨ïVµ‚k¬àĞ&ÒM²¶Šj5/ ¡~qúT¦ÈÈkïé­îšû
+Íİ8ßáœË*Rp­AôøÓìiˆC¸±š;~F >m©Ãª¼«H
+ähf)¢jS[o‹rÌÛŠĞÙ4	o«)$«%ªÄQ©MPøÄÄ8?ºkÒæ¨±şœÕxwÏk)¢öå5Ó©™ƒrµdõ$ü×„9Ã» z4ZZ¥‡«3ıçå«.Ö/e{kƒ4Šú·“»IÚƒ­jTØX„±)3&²}¯Á‡A£¹OÆE66KÇÌ0b'æ;)v©{©ÉGì=à—z.è6§¸Ÿ˜zU\Ä·m‡¨6ğ-¡ØÛ aŒµ˜ÜÚµúİ‹ï¯j«ıºŸï4wÆƒ$¯š8E@rĞÄYÖ8vB`½¾¼LècÎ4ÖíäØW@Öª“÷á¯;ğ·3¶ô#îJÄ[…¸Et¬3=L*4´Cj\Sl-Ö¼vÔX’xë³l©2TC¿“UE»š÷
+¢Òğª¢=@ñYÄ¤0o²ş²(ÈqæYuÔÜàßêá¼5İ¨Ÿì¢"oİæ<QÆìi_ÍHbE}jlv¯ÖìzmˆêhÖsàk
+>Yñ˜Ódòjë±7lÅ9¶lsÇ®ªÌÅñ +®BÀs5¤ó–TY¤â<™¶›dnæu†€6ßÌi2ª–ã"kÇfíXı qŞ†8¯Cœ·!Îëç‹kEg$à7’àa¾Y%æG‹ù@‰0ß
+¼¤kmå–òe†âie%{ßû§—*—òwÅıa´j  öoY‹hÀë…’uĞ?sÈt‰®Œú(T}iiŞ™ÜQQùah›FHâîfk­ÑE¶±1Å9"·DŸæéÑÅâüY×7GĞutQÈO‘ş…}X.`€_úÉ;dH ÓTÍäø){ºƒÿ•òÙ!òQ¤„²‘4„påÍÏzZgs¤`µÊ¡ô¥DÒSÍ±ÅØ;²d7bbAÿ¿926€åškdÙåàj® ]­Pä!@¶ã}øJ¬1NE:øàÅ‚!¶¤fE¶äì$¢–ûÂí2n€9¬4ZMÑ¬T©Í¹¿<¸ä¬ìH®¥1 ²ÌàR¹æN›Èƒ‹°`—.Áß8ö
+üÖ[v’ÜÙò¶¼h›”h_ô£=XíAõŞ=¥‡u¯ná=Eíû÷Y L7]a"yÆğc!œ;ğZ+ì?,€Ñf?@aâOWÛ3LÑ„%š¦¤šz$¿¼Àœ¨‚pÊÑşu´¤ê'¥®«¢Kl`÷Ğõ€Ê„ZÂòÊ–†$¤l%
+a”U6¦]ÕÑúšf´B§33:YĞé”£ãÑqí+§dä`T¦q]`±Å®yrşly+,X¦Ú§Q@<Ä¦¸b,€²—BsDäãPp’'y•é#€*§¥˜õ6ºOqíî(pì€LëLĞX8=«ËAêºURì†ytÇïÇÙNÜß¶öI~@ =©»4uÔ2Dƒ«û`J«èéh ¿H–äæ‹/l±À$½†ê­‹|š¤!ÁAÒ‚¦˜Ã˜ãë„pÎœñøÛ¬<úÉğRıôhÁÚ)U6<<C>á(àc­&¬1çŒ(LÌ'äÔ#qä÷p‡©œ;Û®ˆEŸ¾\·üİˆVu3«u±g²è ¸‹Ûô¼©!gä^‡>Cr™ïáÛı÷mû&káY^³À™¨³¶»®-7”•¡ ĞDl×`ÙlÃ;kÕ©fEÛi,6w¯ƒ‹§Ã8½ù°:Ô‘],cŠ™9Œ$äıDİÜ6ê¥Úã!Œ­c‚£~Ã»q/g°oŠ8Æ%2¢¶d"¶MÑ8J›LSğx˜µÿ¤s[l1®àWÜÍæ‘¿L£â…	NÜG²€’ˆ*Re°¹ÜËÁ?Ëç‘›nh@a‡
+^†9äÇ
+&Ë€c*ó"`„İà/vÏ/Á3¸¾øÛ™W.™ÕrŞjÙ-ï«V'ÊÌ ¦&j”3PÁ“ ÃÍŒA3¿ˆvnç"•’ùæhr‰š\²<nÆĞso )·‚$Åm°*¤††Ë/¢”¶AÁ ?cUv´J%ú?ZB-¿ä'ğ–•&zã+q·+‚(è¶ŒÈŠl !4¿k*>9§WÀ±yİ„bP†ÖİMj·AkÖ¤‡šX¿&K(²f‡ºV’`Ê¶¾ğûÀOı^/êÙÜnjl‘ğD µì£:åE— hc4g\T½-
+Şi•ŠÚZÑ%q‚ m;š5ÀE5@ö¥"ì‹l“ÓÑàgÙºæ~Ÿï_˜yáV¸yªÏ-Ù1Èâ«)„W{Ÿ~!ò†äDV‚`«ªò¡n/·Ä¸0ÄWŸ”ôPÖ§á½Úâİqc¨É%ªKÚÔÈë1j/ÉÚ‹¦ñ<Ëš™&pygç¢”»¬eüì¿å¬d‚‰ÆáÕ~ÆÑ¶#ù…2¸¼Bsù&Û&&ù]©ÀmZß<AICNë
+ü"ãÚdÂh„Îõ/š
+€ïh,«v€¥²ÒÃˆOĞ&Xn…¨3`K8Áö‘*³ÂàäHÅ¥IIêaj—$î\8HÎéá‚Œ#‚ø
+AÒšz2»ş~µ›,{ˆûUøõ5Ùš¯µáL-óxV¤ƒP—raüã÷·1·3DÙxÈF«Òˆ¶¼×døgº´†t	ğÿkÉèz¿›À–mEÙ°—ëG§™ä×Q4‰ ›*R=Â¶‘]„6\8Ly`û…‚‹WæŞÕ@dšb_f+?ÑxTÄ9¬í—èm:E¡ª³ì2:_¹ÁvˆWj(á>Ş_aHq­ğÇ eÛ86ÄßÏ†y(x2ûç4'¸xŠ²USîRh¿¢orî]C¨§‘Îñ˜6Qqü‚xbl	mk5óÈ‡æ¡/ÓÇaêï]#Ÿ®¯Á¢4òÕ½;@­áĞi¤ÚäP, [¿`ó\îÄ|9 í…Â+Ö‘Ã-‹·¢möóĞKƒb,4ƒ¢ŸéV!MŒ4#ÍMZ†<Ìş ]XÖ†«{oQYÀºPçº÷_¨,4XTŒ‚êfŒ:TjĞVËôxÕŸ¾Sã—@M¨C`
+4zŞ¡`3Ec,"%£Á¹ã­ËíªÛé­x›U˜áMˆâĞÜ(Æk`¼JöKy¬{%P½é9ëG	J¶á)‰	%C2ÀY¹«	2Ğ ¦fk'ªA‘¼¼›5”ÙÕõ«šKx¯d®Ô+@ÕÊıú=ú‹O)Jñ©ÃŸ:ì	[ÊîêŞáİ;9{Jùvèğî{2º³ÑY¡½#qI5`İ¦ûA¾ßÄ›QòJ>çiò0º…¯àİ°Udqœ_¤T¥Ë‹µŠê‚	yîbú"ÔqÍÅUYø°sTOU~™.]‰bÛ»‡ÇS÷Ñ»ª`ĞµmÇıM#¼×„»É(ºTïÜóIİÓßqMCu^×QulUc“Æò4Â›3¼¢$æ	ş—O.´Ü3éj5nÓŸ³™;ü	‡3 Šf9A ¸ACsk c¤œ.Cc<wAØtî‚WğÉDt ³q‡ûzã]Sùú\õvšúål¶æ-j»0”Ğ=İ[»àîªı«`ÁÈÅP6Š¨¾¡ö~%72e¨‹š'4FpÛ77qé›r†˜à–Û3dQp°±Ê5ÜÈZ»AG¢PÔ$c™÷TÇ-ƒ¼-5-ÔnÉÚ-£–×oÁÁœ¯ñt/j=à/@p|$†ôÀËxáhâò®è´Æ©",²° ˜9q2,M™-S¸	”Å7$‹é6Å2O¾%Ø2û#Ú“¼zéfhs'tÎ0¨èıKUcÌ£1óYüß€ÑEQ]Ğƒ™Èâò[a³¹¸ºátpÙùíŠpuW­~!Òß¾Eô¯36eEšiş«ş Ÿës¨[N¨[êÖ‰¡JêH“š•hfuxLß-Î°êøP[nµn¬³±¸ê`ZÜò.ŞY5Ø`&ƒ"÷‹Öêªok¶e¯ƒÇ:6ï¨˜·TğX˜@Päë†
+4´N†K¯©ûì›*’¿ĞàÅê5i`_ Y­à¤ìÖ9ßfªØCXŞìJÉM’OQd÷?èt¤O7HÔ+ÔQ³â­YI¦ş şc~İå\ùd>ğƒ|H¯åhEÀ
+N·—©qSè»1¸›ä?…B1o}Mô8¬WÄ¯€‡¢ıAät¥uÔÇ\³1è%”Ğz6ĞGŞ r jM8´:[M<ˆ’hha ÍÍãÌ®_®QÂ*şât ]M7‡è
+Ì—NÎé2hãR²qü¥ŸÖÎ,³1åwF8ÄÙ®qiÉ(¿ÈUÎ»3¨mûø«ƒ¿:Ï¦¦'By!j9/[WÓœëˆp¼vóÎƒ+W¿¿âi›ˆ–Ğ+^¦ÑaÁ«^3“êÊL¨ë[H]rd]NÁŸÀé pù&¾ÊgËÀ¢RÄp…#Ğn;¬_¾3)^êlÆı~”^»ı:rGeB*EôêÔëM´T.³$ÏØjyHxY¥mß~ù@l™ğ}ù@\Ó?|[!m¶Ros<òEô0Ä»ş ‰×¡ıq§‹l{©òİÿø¬{üıZŞùW¨È¼’R¹Am·dKÎ²oëØ§ÉÏÒ)JzŞÜÆË£Ã—²C#A'o@Yä€²Mb½Ã¿™ùV9UkÍÑ­V*Ç—±ŞMÆxà!@xnZL$Şë}öU@È˜w*ÕçıvôËZwöİ¬:›©Ê
+Ğb˜)KS"„¯(E«¿rhÑ3B‡q²¼Óé1îp…ÛÑ›Ìeí/xUwDàšSP"ä×~ˆî.]1ÇŸ,dÜ7†ZÒYF…Ö–N²Ş
+ØP?@c®Z«pVö:·èX˜ğ—T‚şìPfî>ú—¾ö^>€1`Iéë´bìS•Cä ˜o•†¯Ö=õ8®š" <3æ+Ü*Ï…ÿì$çrm¼JM§Z»„jøbÂÆsQí÷ÏCµ¶Iµö¦Z)n3RÛTâ…cN<uh¡­Á.•AYÙş³ô?~¹3A¿"Â2"=ÃPgÿã—û†S¯Ììsc{	5BˆçPúkøˆê|6 G¿¬”,ß©R­J(Oİ`Ës$³ªµYœd+Hz å…8É£eŒ˜n¤L»¯a6¸øì8¹Fš~ =çrÌÁd²£Âh’ï*ê–S!¤ m§	5(ZOU4¯kEjàM~#f cÂ•g3‘b|çºÜD5ÁÅŠí‹ìÂ'-†-Õ3ÛLà"2á(œŞÏæOª$%Åu7ıL±ê·onêëm9£rµe^”çeV\W±w-ÌnZ[…–m«¥-1	âppİü3Å6]á'i0Né‚n!Ø5–:×‚Î°5ú—¹ ıEJÁËáCï‡ 
+áÖÌ\Ï8@ÎÜÇ•a>İY¼Àpœ«xÏ§İj©Í©·:+ÿ@á$¢£Æ¾Õ÷oµÎiÿ!?HÏkEÜ² (xÓ#§ÛPéè´R(áVšD
+z$ Ázßıî&Xï»ßş CÕ¯u¼“½y+TÇœCuXpâã Ç!¢Ï¶´ğ§laa=&Ùwğ¾bV×±¹û=®¾Ì;´_ˆÜHÏçäšâhOóñf=1'4KğùôøÇ”è‘£óö@fŠÃ&\e¿ÍW+vrÍJ¹&¡ÅyjudD³Ì[‹5\ÓÄYS3åadJQæ„V¶•¤sºÅ-Sõ9Moëî¨B†ÇS)EÛ|²z0Ãã`&MdaÍ°NÕ@æbR}ËÁÃkÆ¨2äVX³F^á#Ry#aìÎ†óZÍvËC+¶p¤ê4†È­òÄ5	UÊîNq*ºåi&óş¶üÍÈzÂˆY–*_Á¼NÅ«FŞ8Ûàôñ)š&bÙ7ü]º“b~¥ƒRJMh7¾Àà3£ëü Å3 Šc–ã93qóF¾i­ò…¨sEœ!?IKjéRrŠ'B©	 o—§¶¯¾|P–õÅˆİÖ¸ñ R£8Ò:iÎˆíN"StÊ dUŠØø%	gğE‘švsÚ8IÅ^ÿvyx†¯®nº<]ü`ò$>•I-mÚÙ8‹;q/ÎÇÁ¥T25ú‘-°If›âûĞ@"2šì­{j/ƒCñ³@’Ieª;¶Xg4Æy,¿¡İ^‹fè($
+Ãw5«¬ĞãÎæ	ÛãÙ÷‰zÀ*Ÿp¿Wè èPèãZñKI8F]F!—[fcÅ/Ş1}r\ĞÛ°ÑV+ø¥ª¤ºW¢Wg‡C:Øˆí³A‚Aûqàœ>-:6§4ÂÊy²$…òÜ°]÷ö@U&{Í0ÅA´	Co¯ì¡û'^UÄ»]¼m‹t}q•òêÅ×"õ½[œv_t¤»½vÆ»àÚ 5£ûN§Ùğš«![zö.:6ƒıŠ£‰„xÍlƒA¹ˆokVañeQùÓ‘;e™ÏÕÃ«#X\¦]­0WêœØÔ¡´1³ğL·"ƒü.ôãiş ¯x7J†y•ª{íÅV­f%çCÕ˜ôª¨ñJ”½¬›AÁC¸i&£)dš³2HÒû«*‡$ª”	@uel¦äÂöDY¹lÊë³ğ»Ú½+§LUÿç˜ıS0ÍnŒ¯“°iâ«7‘ Ë3ĞÑB¬¡ë]ö.“5ÙA¤eÍèxX'³;œÅ—W7§´XZ1U%¬J!¼=u(70²8@·Y#-İ‰F–ÀÚe¶‰1Xf¼G[Šƒb>M,íWà#ƒ§ôCLñiwbÍ¼¢HuŞ­w!½­Û4dYĞE/-uñtDÛĞÜo±D¢%-éá#1Ò/öC‘ıÖ¼(Á+9·_×]¿(Dï˜Šl¹|–x^¼äÌ–‡ôù’TH-‡ÒGÃz°êu`’˜oŒ’4ŠÖ
+G­¿#ÉC`L?Ş’™–ºiU´Ô(…tMr¡Ãt53T9e6[Ê•‰x›§'“Tc©ÊDª11‘ó‡?,öÓ˜=Õ2è^:]úf,"oZ™LOææí1–u—ç
+Ò#İ]…k%ÛSêµU{<ºA§îS©<–N]U“à¬Ü›Î®ÌÓ=ô,˜ÖJ°w5[
+ ¬í>eÆô«{|Ö­®_	œV<[SÔ	ÑòğÙ¶¹IÛÂ³ir)e9è<U2c=u¶œ”İ–[UÊ§ñ„Ãä¿ë'Çd¹¦­¡Ê½s—[™Pg‰i‰Ì<ğ\ò71kj~¾E©R¥B²Ó¤ëWSÛIcWV¬)¶=Tk®t¯æ1j?™³•½î5ÍW¹úb°š(Ôs¸ˆ¬‹+dUA’àá›+…¬‘¤(ŒID:tÒƒşœ=ëİâ)ñO•‚aí¾ûğgŞÑoşxôû£?ıìè“£9úÕÑ¿BÉ¯Vğ}×mö)1öé´ŒWâ§l´-c
+eù}wô)Ë&ık‚©û³ú´'õçzø@[»R¹Õ3ëğe·™p“•‰‰^1•t	63(ŸÙğ0C|“çZÈòìDmªu;	1xÓ½!dš‚›°ïğ‹"xá2îã‰©½Çyì´Ìö·=ğÙh¢™!lƒåF™¥àR™fÜÄTëÊ{åoÕñ{JÉyØïÚyØ¯ÙzÁÀ°`6Öµ¤œSMEm2å–À>®²A„ÕáÃ4KRPzûâ÷[˜Tè]Ãò_QwÛàÓ¢\ñ!Ì¼›áBÈ¸š4`i¿½3ë,¸hÖ¤­nµØtLMÇvÓ·ä&h @º¿j5ÅB™ŠÄÌjÂ½'&7¥çØe,AkŠœÂ¥;$sld{Úşj:P´!h;^Sn¢È´{ãÓ%OébHdÊDXãX¢£ê-Uš³¾Ñş‚1:D3,#{ˆWˆ˜×¹×Ü7Üó½æØğÎ7¬ÏÕl-YLø<E|~0x>SùÎïâü=->zBã÷âWuJp:‡”±NƒÊgÏ¶LµD'M}›´ŒÕCaÊ¯šÌ°Î1¡ÏtÒÇú~$¾KŸßÃ/É…¶ŞÑ×ê‹¾Ç?ç_şËıAşÕ>dÜ,Œ‡ŸB¤¯ş¿½ü-}Ã“:şø£ãŸzôAçGì;è İ³øœ¾Ãˆ·->Â~J|›İ¯°CN‡o7÷òÓ€b /AP©{Ú*Ä(Mş…@øA €¨%ŒëÃ% ùÒG¹uıaO^ÜÍÓ1Ã‘Î%¸¸Gée€´¯r…	ì€9y¡aìx§5ƒ¼	øòŸo19¥ÿN›*f~Su!klîÁfj8€¼†eò\±…—g'Ó’­ˆØÂ‰èK©)~‚kŠ›yj¢VãIiÄgiŠ“ª+ìƒŒ,òKŒZs’ˆp‘úÜ`zºP¨CpÚ‹O:NÂsBßo3‡ ¢â ê{'šÅ5™Eát¡°8ˆú¬äÌƒğ.j ^`?¥Ïşó0JÇ·¢^äIz±×«Všy§.]£“÷ïá·™xè{¿Rkv“ôªìT;y_ñlç$DP¨BµÒÄŠ`ÿ=	¢ÃøàZğrNt*÷÷8—3œ¡BĞ²`¡¸E^t:ÂX V8££›±‡ºŸh‘Æ¡îİ_µÄzïìdç¯¦éøÖ—Ö
+ò,õÏ,êøA¡ú.Ëû“z‹O²:(÷Ã¼¸rkîÒ™Ìºî½1Üí ÀÎOÁoğó®åˆğïÏN]í[´Ú•èU­ ®ª°ÛšúiŸdá¦^€*–-Ø;Œ ´çij3«/•ºpÂ¨'Î«ó}”ÚÌ‘õRÛ‡ÿuµûX½Z©Ê®aÜ­{×jvÖ"pQ¾£]È·¨ûvü=tæb³BêMG:ÈIÙªB$`9^&é!'ëÑº ¨BœjÇÄ÷óX6@Ço3Ùà¨‰/ãÃÇøßÿÃß«ÇâÍzõÚˆëP¯c¬*ï ½½3*³„>‹²
+|·âöÉÛÙ3£QR4ÊÃH9ÒZÍùå²ÌhíUqU‡Şöğ³ê½suoQ|ğoöÏ…<Ã+/ö‰¯Hš‰J_|™G|–L|cÇl;ùÓdÅ“¹Gâˆá>ûÀ8 ½¶È¿7&§§zÓŠyÂ7ŸPâ+%°ôôŠ>Ù³Ñƒ§óéK_f3î3$‡sğ½0ä&r¾ÍU2îa=•v¯Õ\”÷œ%rî¼µ\÷–î×f'jƒƒ‚hfĞÓŠK©äHŸ§Dt¦¤–7>²c|©—ısàZŒ—–ın·³¬å.D?ç8+7Á‡ï.Øù¼ï€MI§@g'0÷[Ñr·ë‚nÁøv¸N…=)c£x±Íâ4™Æ)ˆ–Ô‰(U1yâ@¤n«Ó]œ}oİ/Å[kÎö.½´/.'	±
+ú`ÂNƒ©ÛË®œº”iQĞKuoá¾5TÙ
+q\ùŠì•âø\ëT¢N0İ—Îû2îšŒ»ŸÄ­ÕŸÁoÌ‹´É›×AÿÏ?Ë4ûÏ½>K…õqâËH)è®l]¼û`«CÔ>,(ˆ…±6Y˜j‘vn0"";ãÕ³Òùšì#¬æºÌ¸&ÆœgC…ÒoÇÊåewâğ|éQã»}5jj¨O[ë}“>
+—ŞUúb`ö’•‚¯5L”c®a‰S'öUKº:¡.//¶€ÎŒúTgXƒsİ$ƒEüÛjw³‘{QO@³–ŸµLÕÌšjƒşkŸ["İ9…ËOL;Ğ+‹ÏÂÃ.ÃRˆß‘ğQ)ô]”v6€ŒtÎÔ—Ü5ŞSaÎÔ—›¼¼·›œÚ[Ä2XÏçŠ;ªK›IãvŒÀ¢¸ˆ©ÇkÏ€+¸xb„´½«	vP#íïf,Wne9r¡ü†ƒ¬×Èô4Åê}z£{õ$HzIjØÃªGÂM&Ln¸ÙG¾ıbó¬Ø]˜¥gGïÅS*‚áÁVÛùæ­~æR|½O-!¤.ß±#—Ôi7Rš!_‘øÍ5yÅ@f…#û‰îQ»ĞU¯øMCWËM €KÕVpV¼D¶zê°†ÿ];›i<È7à¾†wòİŞÆ©ÿŸ¼ëŞ­xœ340031Qğñtvõveg³¾´ÉúkŞ<£¨³rÓö­ÊÚjÕlQäêèâëª—›ÂÀù1|IÁY!»°×s_•+×ÿa°™U”™—’Z¡—Q’ËpËZîRë¤"ãs§3³Ë¼šd¿Ÿº (v)¢¶xœSVp.MJÕu)J,ÏÌK×)JÌÌK- Q¢¾d€xœËõ˜à ø³k(ò#Èû>«¿«
+
+
+=== FILE: .git/objects/pack/pack-b36b7f06281af2231a1613c8fb3eab069081bfab.idx ===
+ÿtOc                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     	   	   	   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+aJ÷,Lk¸¾¥ˆá&bH	ñW¤pÍ>Vëêus#ü <;Ò²;õn2ZÍ–¾ªjµ:ƒ*vU5¸Pn±1­îÃ?á€Ú.wP€#ëúôU¨Š¦»Í^ÄŸG/Ô>Rª?B(—¼ñ~O3îA·İZ˜c$„8Ö–“:V¡Ú¡1XRi¾`G(ñá¨N(¨ÖæÌĞÁ.ÌÆ‚µÚ;Ò…’rD3ÎËikvJ‚÷ÊÑİr©ç(J3PÃµzÍW¯ø*˜šÇ¿üo˜’ˆâmÛöt“şœ¹	h» 3ÖæœÖLu½÷ÖíèˆR²K  á  ]$  
+a     	ğ  µ  ]D  Ú  (ı  \³³k(ò#Èû>«¿«â¿8Ê23ßIö­TîÜ!¿ÃS
+
+
+=== FILE: .git/objects/pack/pack-b36b7f06281af2231a1613c8fb3eab069081bfab.rev ===
+RIDX                               	      ³k(ò#Èû>«¿«h÷Ü°]Ñ bBÅ‹µ·ğLb
+
+
+=== FILE: .git/packed-refs ===
+# pack-refs with: peeled fully-peeled sorted 
+2a765535b8506eb131ad05ee7fc33fe180da170e refs/remotes/origin/main
+
+
+
+=== FILE: .git/config ===
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = https://github.com/KiselkovD/Cube-Drawing-Trainer.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+	vscode-merge-base = origin/main
+
+
+
+=== FILE: .git/description ===
+Unnamed repository; edit this file 'description' to name the repository.
+
+
+
+=== FILE: .git/HEAD ===
+ref: refs/heads/main
+
+
+

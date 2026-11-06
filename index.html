@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Perspective Viewer</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="panels">
+  <div class="panel" id="panelSize">
+    <div class="panel-title"><span>Размеры</span></div>
+    <div id="sizeRows"><div class="hint">Выберите куб</div></div>
+    <button class="del-btn" id="deleteBtn" disabled>Удалить</button>
+  </div>
+  <div class="panel" id="panelRot">
+    <div class="panel-title"><span>Повороты / Связь</span></div>
+    <div id="rotRows"><div class="hint">—</div></div>
+  </div>
+  <div class="panel" id="panelOrtho" style="display:none">
+    <div class="panel-title"><span style="color:#ffb800">Орто-треугольник</span></div>
+    <div id="orthoRows"><div class="hint">—</div></div>
+  </div>
+  <div class="panel" id="panelSnap" style="display:none">
+    <div class="panel-title"><span>Прилипание</span></div>
+    <div class="snap-row">
+      <span class="snap-lbl">Старт</span>
+      <div class="snap-seg" data-target="snapStart">
+        <button class="snap-btn active" data-val="points">Тчк</button>
+        <button class="snap-btn" data-val="lines">Лин</button>
+        <button class="snap-btn" data-val="none">—</button>
+      </div>
+    </div>
+    <div class="snap-row">
+      <span class="snap-lbl">Конец</span>
+      <div class="snap-seg" data-target="snapEnd">
+        <button class="snap-btn active" data-val="points">Тчк</button>
+        <button class="snap-btn" data-val="lines">Лин</button>
+        <button class="snap-btn" data-val="none">—</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel" id="panelSegStyle" style="display:none">
+    <div class="panel-title"><span>Вид отрезка</span></div>
+    <div id="segStyleInfo" class="hint">Новые отрезки</div>
+    <div class="snap-row">
+      <span class="snap-lbl">Стиль</span>
+      <div class="snap-seg" data-target="segStyle">
+        <button class="snap-btn active" data-val="solid">Вид</button>
+        <button class="snap-btn" data-val="dashed">Зад</button>
+      </div>
+    </div>
+    <button class="del-btn" id="deleteSegBtn" disabled>Удалить отрезок</button>
+  </div>
+</div>
+
+<div id="topRightControls">
+  <div class="top-box" id="statsBox">
+    <div class="tb-seg">
+      <button class="tb-seg-btn" data-mode="none" title="Скрыть таблицы">∅</button>
+      <button class="tb-seg-btn" data-mode="size" title="Только размеры">Р</button>
+      <button class="tb-seg-btn" data-mode="rotation" title="Только повороты">П</button>
+      <button class="tb-seg-btn active" data-mode="full" title="Всё">Всё</button>
+    </div>
+    <button class="help-circle" id="helpBtn" title="Справка">?</button>
+  </div>
+  <div class="top-box" id="modeBox">
+    <div class="mode-col">
+      <div class="mode-row">
+        <button class="mode-btn active" data-mode="theory">Теор</button>
+        <button class="vis-btn active" data-vis="theory" title="Видимость теории">✱</button>
+      </div>
+      <div class="mode-row">
+        <button class="mode-btn" data-mode="practice">Практ</button>
+        <button class="vis-btn active" data-vis="practice" title="Видимость практики">✱</button>
+      </div>
+      <div class="mode-row">
+        <button class="mode-btn" data-mode="exam">Экзам</button>
+        <button class="vis-btn active" data-vis="exam" title="Видимость экзамена">✱</button>
+      </div>
+    </div>
+  </div>
+  <div class="top-box" id="toolBox">
+    <div class="tool-indicator" id="toolIndicator">Создание</div>
+    <div class="tool-bottom">
+      <div class="tb-seg" id="toolSegContainer"></div>
+    </div>
+  </div>
+</div>
+
+<div id="bottomBar">
+  <div class="bb-row">
+    <div class="bb-cell">
+      <button class="bb-btn active" id="spBtn" title="Точка стояния">SP</button>
+      <button class="bb-btn active" id="guidesBtn" title="Направляющие">Напр</button>
+      <button class="bb-btn" id="guidesSecBtn" title="Напр. второстепенного">Напр₂</button>
+      <button class="bb-btn ortho" id="triBtn" title="Треугольник VP">Тр</button>
+      <button class="bb-btn ortho" id="orthoTableBtn" title="Орто-таблица">Орто</button>
+      <button class="bb-btn reco" id="cubeRecoBtn" title="Распознать кубы" style="display:none">Куб</button>
+      <button class="bb-btn raw" id="rawGraphBtn" title="Точки исходного графа" style="display:none">Точки</button>
+      <button class="bb-btn simp" id="simpGraphBtn" title="Упрощённый граф" style="display:none">Упрощ</button>
+      <button class="bb-btn" id="undoBtn" disabled title="Отменить">↶</button>
+      <button class="bb-btn" id="clearBtn" title="Очистить">↺</button>
+    </div>
+  </div>
+  <div class="bb-row">
+    <div class="bb-cell" id="fovCell" style="flex: 2 1 0;">
+      <span class="lbl">FOV</span>
+      <input type="range" id="fovSlider" min="20" max="140" step="1" value="90">
+      <span class="val" id="fovValue">90°</span>
+    </div>
+    <div class="bb-cell" style="flex: 0 0 130px;">
+      <span class="lbl">□</span>
+      <input type="number" class="size-input" id="sizeInput" value="20" min="1" max="200" step="1">
+      <span class="lbl">см</span>
+    </div>
+    <div class="bb-cell" style="flex: 0 0 86px;">
+      <span class="lbl">Дист</span>
+      <span class="val dist-val" id="distValue" style="min-width:0">—</span>
+    </div>
+  </div>
+  <div class="bb-row" id="horizonRow">
+    <div class="bb-cell" id="horizonCell">
+      <span class="lbl">Гор</span>
+      <input type="range" id="horizonSlider" min="-150" max="150" step="1" value="0">
+      <span class="val" id="horizonValue">0.00</span>
+    </div>
+  </div>
+</div>
+
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>Perspective Viewer</h2>
+    <h3>Режимы</h3>
+    <ul>
+      <li><b>Теор</b> — 3D-кубы с полными подсказками. FOV, горизонт, SP — задаются вами.</li>
+      <li><b>Практ</b> — отрезки, распознавание, отладка графа. FOV и горизонт скрыты.</li>
+      <li><b>Экзам</b> — 3D-кубы без подсказок. FOV, горизонт, SP — задаются вами.</li>
+    </ul>
+    <h3>Кнопки видимости</h3>
+    <p>Рядом с каждой вкладкой — кнопка <b>✱</b>. Она включает/выключает отображение элементов этой вкладки. Можно одновременно видеть кубы теории и кубы экзамена, или кубы и отрезки.</p>
+    <button class="help-close" id="helpCloseBtn">Понятно</button>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
