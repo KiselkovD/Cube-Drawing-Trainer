@@ -42,7 +42,8 @@ export class Renderer {
 
     let analysis = [];
     if (isAnalysis &&
-        (state.ui.showRecognized || state.ui.showRawGraph || state.ui.showSimplifiedGraph)) {
+        (state.ui.showRecognized || state.ui.showRawGraph
+        || state.ui.showSimplifiedGraph || state.ui.showAnalysisVPs)) {
       const segs = isExam ? state.document.examSegments : state.document.segments;
       analysis = analyze(segs, camera, { fixedCamera: isExam });
     }
@@ -66,7 +67,17 @@ export class Renderer {
 
     if (state.ui.showRawGraph) L.drawRawGraph(ctx, analysis);
     if (state.ui.showSimplifiedGraph) L.drawSimplifiedGraph(ctx, analysis);
-    if (state.ui.showRecognized) L.drawRecognized(ctx, analysis, camera);
+    if (state.ui.showRecognized) {
+      L.drawRecognized(ctx, analysis, camera, state.ui.showGuides);
+    }
+    if (state.ui.showAnalysisVPs) {
+      L.drawAnalysisVPs(ctx, analysis, camera, state.view);
+      L.drawAnalysisInfo(ctx, analysis, camera);
+    }
+    if (isAnalysis && state.ui.showSP) {
+      const hasSuccess = analysis.some((r) => r.success);
+      if (hasSuccess) L.drawSP(ctx, camera);
+    }
 
     ctx.restore();
   }

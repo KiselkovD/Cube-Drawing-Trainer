@@ -83,3 +83,25 @@ export function computeViewMetrics(camera) {
     distanceM: camera.distanceToScreenCm / 100,
   };
 }
+
+export function recoveredFovDeg(vps, camera) {
+  if (!vps) return null;
+  const pp = camera.principalPoint;
+  const finite = vps.filter((v) => v && v.type === 'finite'
+    && isFinite(v.x) && isFinite(v.y));
+  if (finite.length < 2) return null;
+  const ds = [];
+  for (let i = 0; i < finite.length; i++) {
+    for (let j = i + 1; j < finite.length; j++) {
+      const v1 = finite[i], v2 = finite[j];
+      const dot = (v1.x - pp.x) * (v2.x - pp.x) + (v1.y - pp.y) * (v2.y - pp.y);
+      if (dot < 0) ds.push(-dot);
+    }
+  }
+  if (!ds.length) return null;
+  const d2 = ds.reduce((a, b) => a + b, 0) / ds.length;
+  if (!(d2 > 0)) return null;
+  const d = Math.sqrt(d2);
+  const w = camera.pictureRect.w;
+  return 2 * Math.atan((w / 2) / d) * 180 / Math.PI;
+}

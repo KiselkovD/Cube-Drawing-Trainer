@@ -160,10 +160,10 @@ body.mode-move #canvas { cursor: move; }
 .bb-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .bb-btn.active { background: #4a7aff; color: #fff; border-color: #6a9aff; }
 .bb-btn.ortho.active { background: #ffb800; border-color: #ffcc44; color: #222; }
-.bb-btn.reco.active { background: #ff8a4a; border-color: #ffaa6a; color: #222; }
-.bb-btn.raw.active { background: #ff5c5c; border-color: #ff7c7c; color: #fff; }
-.bb-btn.simp.active { background: #ffd888; border-color: #ffe8a8; color: #222; }
-
+.bb-btn.reco.active { background: #ffb800; border-color: #ffcc44; color: #222; }
+.bb-btn.raw.active { background: #c8c8c8; border-color: #e0e0e0; color: #222; }
+.bb-btn.simp.active { background: #c8c8c8; border-color: #e0e0e0; color: #222; }
+.bb-btn.vp-an.active { background: #ffb800; border-color: #ffcc44; color: #222; }
 #helpOverlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.75);
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none;
   align-items: center; justify-content: center; padding: 16px; }

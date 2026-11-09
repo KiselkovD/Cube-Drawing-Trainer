@@ -11,6 +11,7 @@ export class UIManager {
   _$(id) { return document.getElementById(id); }
 
   mount(root) {
+    this._els.vpAnalysisBtn = this._$('vpAnalysisBtn');
     this._els.fovCell = this._$('fovCell');
     this._els.horizonRow = this._$('horizonRow');
     this._els.fovSlider = this._$('fovSlider');
@@ -94,6 +95,7 @@ export class UIManager {
       this.state.ui[key] = !this.state.ui[key];
       this.state.emit();
     };
+    this._$('vpAnalysisBtn').addEventListener('click', toggle('showAnalysisVPs'));
     this._$('spBtn').addEventListener('click', toggle('showSP'));
     this._$('guidesBtn').addEventListener('click', toggle('showGuides'));
     this._$('guidesSecBtn').addEventListener('click', toggle('showGuidesSec'));
@@ -166,6 +168,7 @@ export class UIManager {
     this._$('cubeRecoBtn').style.display = isAnalysis ? '' : 'none';
     this._$('rawGraphBtn').style.display = isAnalysis ? '' : 'none';
     this._$('simpGraphBtn').style.display = isAnalysis ? '' : 'none';
+    this._$('vpAnalysisBtn').style.display = isAnalysis ? '' : 'none';
   }
 
   _updateCameraControls() {
@@ -203,6 +206,8 @@ export class UIManager {
     setActive('cubeRecoBtn', st.ui.showRecognized);
     setActive('rawGraphBtn', st.ui.showRawGraph);
     setActive('simpGraphBtn', st.ui.showSimplifiedGraph);
+    setActive('vpAnalysisBtn', st.ui.showAnalysisVPs);
+
 
     document.querySelectorAll('.mode-btn').forEach((b) =>
       b.classList.toggle('active', b.dataset.mode === st.ui.mode));

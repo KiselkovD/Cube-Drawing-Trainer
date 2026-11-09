@@ -63,6 +63,7 @@ export class CreateBoxTool extends Tool {
   onPointerDown(world) {
     const box = Box.default({ id: 'b' + this.state.document.nextBoxId++, center: world });
     this.state.document.addBox(box);
+    this.state.document.selectedBoxId = box.id;
     this.history.push(this.state.document);
     this.state.emit();
   }
@@ -75,6 +76,7 @@ export class CreateLinkTool extends Tool {
     const box = Box.defaultLinked({ id: 'b' + this.state.document.nextBoxId++, center: world });
     box.link.theta = 60 * Math.PI / 180;
     this.state.document.addBox(box);
+    this.state.document.selectedBoxId = box.id;
     this.history.push(this.state.document);
     this.state.emit();
   }
@@ -139,7 +141,7 @@ export class MoveTool extends Tool {
       if (mode === 'exam') this.state.document.selectedExamSegmentId = null;
       else this.state.document.selectedSegmentId = null;
     }
-    this.drag = { kind: 'pan', view: { ...this.state.view }, world };
+    this.drag = { kind: 'pan', world };
   }
 
   onPointerMove(world) {
@@ -152,8 +154,8 @@ export class MoveTool extends Tool {
         box.center.y = d.start.y + (world.y - d.world.y);
       }
     } else if (d.kind === 'pan') {
-      this.state.view.x = d.view.x + (world.x - d.world.x);
-      this.state.view.y = d.view.y + (world.y - d.world.y);
+      this.state.view.x += world.x - d.world.x;
+      this.state.view.y += world.y - d.world.y;
     } else if (d.kind === 'endpoint') {
       const list = d.mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
       const seg = list.find((s) => s.id === d.segId);
@@ -292,14 +294,14 @@ export class EraseTool extends Tool {
       st.emit();
       return;
     }
-    this.drag = { kind: 'pan', view: { ...st.view }, world };
+    this.drag = { kind: 'pan', world };
   }
 
   onPointerMove(world) {
     if (!this.drag) return;
     const st = this.state;
-    st.view.x = this.drag.view.x + (world.x - this.drag.world.x);
-    st.view.y = this.drag.view.y + (world.y - this.drag.world.y);
+    st.view.x += world.x - this.drag.world.x;
+    st.view.y += world.y - this.drag.world.y;
     st.emit();
   }
 

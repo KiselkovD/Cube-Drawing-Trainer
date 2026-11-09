@@ -57,6 +57,7 @@ class SizePanel {
     this.rowsEl = null;
     this.btn = null;
     this._structureKey = null;
+    this._lastBoxId = null;
   }
 
   mount() {
@@ -81,6 +82,7 @@ class SizePanel {
       if (this._structureKey !== 'empty') {
         this.rowsEl.innerHTML = '<div class="hint">Выберите куб</div>';
         this._structureKey = 'empty';
+        this._lastBoxId = null; 
       }
       this.btn.disabled = true;
       return;
@@ -129,13 +131,14 @@ class SizePanel {
   }
 
   _syncValues(box) {
+    const boxChanged = this._lastBoxId !== box.id;   // ← добавили
+    this._lastBoxId = box.id;
     this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
       const key = inp.dataset.key;
       const realVal = getByPath(box, key);
       if (realVal == null) return;
       const uiVal = Math.round(realVal / 10);
-      // не трогаем value, если пользователь сейчас держит этот ползунок
-      if (document.activeElement === inp) return;
+      if (!boxChanged && document.activeElement === inp) return; 
       if (Number(inp.value) !== uiVal) inp.value = uiVal;
       const sp = this.rowsEl.querySelector(`[data-val-key="${key}"]`);
       if (sp) {
@@ -153,6 +156,7 @@ class RotationPanel {
     this.el = null;
     this.rowsEl = null;
     this._structureKey = null;
+    this._lastBoxId = null;   
   }
 
   mount() {
@@ -169,6 +173,7 @@ class RotationPanel {
       if (this._structureKey !== 'empty') {
         this.rowsEl.innerHTML = '<div class="hint">—</div>';
         this._structureKey = 'empty';
+        this._lastBoxId = null;
       }
       return;
     }
@@ -252,12 +257,14 @@ class RotationPanel {
   }
 
   _syncValues(box) {
+    const boxChanged = this._lastBoxId !== box.id;   // ← добавили
+    this._lastBoxId = box.id; 
     this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
       const key = inp.dataset.key;
       const realRad = getByPath(box, key);
       if (realRad == null) return;
       const uiVal = Math.round(rad2deg(realRad) / 5);
-      if (document.activeElement === inp) return;
+      if (!boxChanged && document.activeElement === inp) return;
       if (Number(inp.value) !== uiVal) inp.value = uiVal;
       const sp = this.rowsEl.querySelector(`[data-val-key="${key}"]`);
       if (sp) {

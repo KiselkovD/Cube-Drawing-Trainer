@@ -43,14 +43,19 @@ export const DEFAULTS = {
   fov: 90,
   horizonOffset: 0.3,
   pictureSizeCm: 20,
-  boxSize: { w: 100, h: 100, dep: 100 },
-  linkDefaults: { d1: 200, d2: 200, theta: 60, alpha: 0, beta: 0, secW: 100, secH: 100, secDep: 100 },
+  boxSize: { w: 200, h: 200, dep: 200 },
+  linkDefaults: { d1: 200, d2: 200, theta: 60, alpha: 0, beta: 0, secW: 200, secH: 200, secDep: 200 },
   bottomBarHeightPx: 148,
 };
 
 export function graphColors(idx) {
-  return {
-    raw: COLORS.rainbow[idx % 7],
-    simp: COLORS.rainbow[(idx + 2) % 7],
-  };
+  const c = COLORS.rainbow[idx % COLORS.rainbow.length];
+  return { graph: c, raw: c, simp: c };
+}
+
+export function withAlpha(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }

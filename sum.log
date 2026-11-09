@@ -164,7 +164,7 @@ body.mode-move #canvas { cursor: move; }
 .bb-btn.reco.active { background: #ff8a4a; border-color: #ffaa6a; color: #222; }
 .bb-btn.raw.active { background: #ff5c5c; border-color: #ff7c7c; color: #fff; }
 .bb-btn.simp.active { background: #ffd888; border-color: #ffe8a8; color: #222; }
-
+.bb-btn.vp-an.active { background: #ffb800; border-color: #ffcc44; color: #222; }
 #helpOverlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.75);
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none;
   align-items: center; justify-content: center; padding: 16px; }
@@ -1190,7 +1190,7 @@ export class MoveTool extends Tool {
       if (mode === 'exam') this.state.document.selectedExamSegmentId = null;
       else this.state.document.selectedSegmentId = null;
     }
-    this.drag = { kind: 'pan', view: { ...this.state.view }, world };
+    this.drag = { kind: 'pan', world };
   }
 
   onPointerMove(world) {
@@ -1203,8 +1203,8 @@ export class MoveTool extends Tool {
         box.center.y = d.start.y + (world.y - d.world.y);
       }
     } else if (d.kind === 'pan') {
-      this.state.view.x = d.view.x + (world.x - d.world.x);
-      this.state.view.y = d.view.y + (world.y - d.world.y);
+      this.state.view.x += world.x - d.world.x;
+      this.state.view.y += world.y - d.world.y;
     } else if (d.kind === 'endpoint') {
       const list = d.mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
       const seg = list.find((s) => s.id === d.segId);
@@ -1343,14 +1343,14 @@ export class EraseTool extends Tool {
       st.emit();
       return;
     }
-    this.drag = { kind: 'pan', view: { ...st.view }, world };
+    this.drag = { kind: 'pan', world };
   }
 
   onPointerMove(world) {
     if (!this.drag) return;
     const st = this.state;
-    st.view.x = this.drag.view.x + (world.x - this.drag.world.x);
-    st.view.y = this.drag.view.y + (world.y - this.drag.world.y);
+    st.view.x += world.x - this.drag.world.x;
+    st.view.y += world.y - this.drag.world.y;
     st.emit();
   }
 
@@ -1371,6 +1371,399 @@ export function createTools({ state, history }) {
 
 
 === FILE: layers.js ===
+import { COLORS, THRESHOLDS } from './config.js'
+import {
+  add3,
+  mulM3M3, mulM3V3,
+  rotateAroundAxis3,
+  scale3,
+} from './core/math.js'
+import { computeVPTriangle, recoveredFovDeg } from './perspective.js'
+
+// ============ helpers ============
+
+function drawMarker(ctx, x, y, color, label, r) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  if (label) {
+    ctx.fillStyle = color;
+    ctx.font = '11px monospace';
+    ctx.fillText(label, x + r + 5, y + 4);
+  }
+  ctx.restore();
+}
+
+function projectCubeCorners(center_cam, R_box_cam, size, camera) {
+  const { w, h, dep } = size;
+  const hw = w / 2, hh = h / 2, hd = dep / 2;
+  const local = [
+    [-hw, -hh, -hd], [hw, -hh, -hd], [hw, hh, -hd], [-hw, hh, -hd],
+    [-hw, -hh, hd], [hw, -hh, hd], [hw, hh, hd], [-hw, hh, hd],
+  ];
+  const corners_cam = local.map((p) => add3(center_cam, mulM3V3(R_box_cam, p)));
+  const proj = corners_cam.map((c) => camera.project3D(c));
+  return { corners_cam, proj };
+}
+
+function classifyEdges(R_box_cam, center_cam, size) {
+  const { w, h, dep } = size;
+  const faces = [
+    { n: [0, 0, -1], c: [0, 0, -dep / 2] },
+    { n: [0, 0, 1], c: [0, 0, dep / 2] },
+    { n: [0, -1, 0], c: [0, -h / 2, 0] },
+    { n: [0, 1, 0], c: [0, h / 2, 0] },
+    { n: [-1, 0, 0], c: [-w / 2, 0, 0] },
+    { n: [1, 0, 0], c: [w / 2, 0, 0] },
+  ];
+  const front = faces.map((f) => {
+    const N = mulM3V3(R_box_cam, f.n);
+    const rp = mulM3V3(R_box_cam, f.c);
+    const C = add3(center_cam, rp);
+    return N[0] * C[0] + N[1] * C[1] + N[2] * C[2] < 0;
+  });
+  const edgeDefs = [
+    [0, 1, 0, 2], [1, 2, 0, 5], [2, 3, 0, 3], [3, 0, 0, 4],
+    [4, 5, 1, 2], [5, 6, 1, 5], [6, 7, 1, 3], [7, 4, 1, 4],
+    [0, 4, 4, 2], [1, 5, 5, 2], [2, 6, 5, 3], [3, 7, 4, 3],
+  ];
+  return edgeDefs.map(([a, b, fa, fb]) => ({ a, b, hidden: !front[fa] && !front[fb] }));
+}
+
+function drawCubeWireframe(ctx, center_cam, R_box_cam, size, camera, selected, colorMain) {
+  const { corners_cam, proj } = projectCubeCorners(center_cam, R_box_cam, size, camera);
+  if (proj.some((p) => !p)) return null;
+  const edges = classifyEdges(R_box_cam, center_cam, size);
+
+  ctx.setLineDash([4, 4]);
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = selected ? 'rgba(255,216,136,0.45)'
+    : (colorMain ? 'rgba(122,184,255,0.45)' : 'rgba(192,160,255,0.45)');
+  for (const e of edges) {
+    if (!e.hidden) continue;
+    ctx.beginPath();
+    ctx.moveTo(proj[e.a].x, proj[e.a].y);
+    ctx.lineTo(proj[e.b].x, proj[e.b].y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = selected ? COLORS.box.selected : (colorMain ? COLORS.box.main : COLORS.box.link);
+  ctx.lineWidth = selected ? 2.4 : 1.6;
+  for (const e of edges) {
+    if (e.hidden) continue;
+    ctx.beginPath();
+    ctx.moveTo(proj[e.a].x, proj[e.a].y);
+    ctx.lineTo(proj[e.b].x, proj[e.b].y);
+    ctx.stroke();
+  }
+  return { corners_cam, proj };
+}
+
+function getLinkGeometry(box, camera) {
+  if (!box.link) return null;
+  const link = box.link;
+  const M = box.getMainCenterCam(camera);
+  const R_main = box.getRotationMatrix();
+  const R_main_cam = mulM3M3(camera.R_wc, R_main);
+
+  const u_cam = [R_main_cam[0][0], R_main_cam[1][0], R_main_cam[2][0]];
+  const ey_main = [R_main_cam[0][1], R_main_cam[1][1], R_main_cam[2][1]];
+  const ez_main = [R_main_cam[0][2], R_main_cam[1][2], R_main_cam[2][2]];
+
+  const cosT = Math.cos(link.theta), sinT = Math.sin(link.theta);
+  const v_base = [
+    cosT * u_cam[0] + sinT * ey_main[0],
+    cosT * u_cam[1] + sinT * ey_main[1],
+    cosT * u_cam[2] + sinT * ey_main[2],
+  ];
+  const v = rotateAroundAxis3(v_base, u_cam, link.alpha);
+
+  const P = add3(M, scale3(u_cam, link.d1));
+  const Q = add3(P, scale3(v, link.d2));
+
+  const ey_tilt = [
+    -sinT * u_cam[0] + cosT * ey_main[0],
+    -sinT * u_cam[1] + cosT * ey_main[1],
+    -sinT * u_cam[2] + cosT * ey_main[2],
+  ];
+  const ey_pre = rotateAroundAxis3(ey_tilt, u_cam, link.alpha);
+  const ez_pre = rotateAroundAxis3(ez_main, u_cam, link.alpha);
+  const ey_final = rotateAroundAxis3(ey_pre, v, link.beta);
+  const ez_final = rotateAroundAxis3(ez_pre, v, link.beta);
+
+  const R_sec_cam = [
+    [v[0], ey_final[0], ez_final[0]],
+    [v[1], ey_final[1], ez_final[1]],
+    [v[2], ey_final[2], ez_final[2]],
+  ];
+  return { M, P, Q, R_sec_cam, R_main_cam };
+}
+
+function drawLinkLine(ctx, geo, camera) {
+  const { M, P, Q } = geo;
+  const Mp = camera.project3D(M), Pp = camera.project3D(P), Qp = camera.project3D(Q);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,106,213,0.85)';
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([6, 4]);
+  if (Mp && Pp) { ctx.beginPath(); ctx.moveTo(Mp.x, Mp.y); ctx.lineTo(Pp.x, Pp.y); ctx.stroke(); }
+  if (Pp && Qp) { ctx.beginPath(); ctx.moveTo(Pp.x, Pp.y); ctx.lineTo(Qp.x, Qp.y); ctx.stroke(); }
+  ctx.setLineDash([]);
+  if (Pp) {
+    ctx.fillStyle = '#00ffe0';
+    ctx.beginPath();
+    ctx.moveTo(Pp.x, Pp.y - 7); ctx.lineTo(Pp.x + 7, Pp.y);
+    ctx.lineTo(Pp.x, Pp.y + 7); ctx.lineTo(Pp.x - 7, Pp.y);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#00ffe0'; ctx.font = 'bold 10px monospace';
+    ctx.fillText('P', Pp.x + 10, Pp.y + 4);
+  }
+  if (Mp) { ctx.fillStyle = '#ff6ad5'; ctx.beginPath(); ctx.arc(Mp.x, Mp.y, 3, 0, Math.PI * 2); ctx.fill(); }
+  if (Qp) { ctx.fillStyle = '#ff6ad5'; ctx.beginPath(); ctx.arc(Qp.x, Qp.y, 3, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawBoxVPsAndExtensions(ctx, camera, corners_cam, corners_screen, R_cam, alpha) {
+  let nearest = 0;
+  for (let i = 1; i < 8; i++)
+    if (corners_cam[i][2] < corners_cam[nearest][2]) nearest = i;
+  const ns = corners_screen[nearest];
+  const pp = camera.principalPoint;
+  const d = camera.focalLength;
+
+  function vpOf(c) {
+    const dir = [R_cam[0][c], R_cam[1][c], R_cam[2][c]];
+    if (Math.abs(dir[2]) < 1e-6) return null;
+    return { x: pp.x + d * dir[0] / dir[2], y: pp.y - d * dir[1] / dir[2] };
+  }
+  const vps = { x: vpOf(0), y: vpOf(1), z: vpOf(2) };
+  const cols = COLORS.vp;
+  const lbls = { x: 'VPx', y: 'VPy', z: 'VPz' };
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+  for (const ax of ['x', 'y', 'z']) {
+    const vp = vps[ax];
+    if (!vp) continue;
+    const dx = vp.x - ns.x, dy = vp.y - ns.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) continue;
+    const ext = Math.min(len, 2000);
+    ctx.save();
+    ctx.strokeStyle = rgba(cols[ax], 0.6 * alpha);
+    ctx.lineWidth = 1.3;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(ns.x, ns.y);
+    ctx.lineTo(ns.x + dx / len * ext, ns.y + dy / len * ext);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  for (const ax of ['x', 'y', 'z']) {
+    const vp = vps[ax];
+    if (!vp) continue;
+    if (vp.x < -500 || vp.x > camera.viewportWidth + 500) continue;
+    if (vp.y < -500 || vp.y > camera.viewportHeight + 500) continue;
+    ctx.save();
+    ctx.fillStyle = rgba(cols[ax], alpha);
+    ctx.beginPath(); ctx.arc(vp.x, vp.y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = rgba([255, 255, 255], 0.9 * alpha);
+    ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = rgba(cols[ax], alpha);
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(lbls[ax], vp.x + 8, vp.y + 3);
+    ctx.restore();
+  }
+}
+
+function drawVPTriangleFor(ctx, box, camera) {
+  const info = computeVPTriangle(box, camera);
+  if (!info || !info.vps.x || !info.vps.y || !info.vps.z) return;
+  const { vps, orthocenter } = info;
+  const A = vps.x, B = vps.y, C = vps.z;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,184,0,0.75)';
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.lineTo(C.x, C.y); ctx.closePath();
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (orthocenter) {
+    ctx.strokeStyle = 'rgba(255,184,0,0.32)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    for (const [V, P, Q] of [[A, B, C], [B, C, A], [C, A, B]]) {
+      const dx = Q.x - P.x, dy = Q.y - P.y;
+      const len2 = dx * dx + dy * dy;
+      if (len2 < 1) continue;
+      const t = ((V.x - P.x) * dx + (V.y - P.y) * dy) / len2;
+      ctx.beginPath();
+      ctx.moveTo(V.x, V.y);
+      ctx.lineTo(P.x + t * dx, P.y + t * dy);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,184,0,0.9)';
+    ctx.beginPath(); ctx.arc(orthocenter.x, orthocenter.y, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,184,0,1)';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('H', orthocenter.x + 9, orthocenter.y - 5);
+  }
+  ctx.restore();
+}
+
+// ============ exported draws ============
+
+export function drawPictureFrame(ctx, camera) {
+  const r = camera.pictureRect;
+  ctx.strokeStyle = COLORS.frame;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 6]);
+  ctx.strokeRect(r.x, r.y, r.w, r.h);
+  ctx.setLineDash([]);
+}
+
+export function drawHorizon(ctx, camera) {
+  const r = camera.pictureRect;
+  const hy = camera.horizonY;
+  ctx.strokeStyle = COLORS.horizon;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([10, 6]);
+  ctx.beginPath();
+  ctx.moveTo(r.x - 400, hy);
+  ctx.lineTo(r.x + r.w + 400, hy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+export function drawSP(ctx, camera) {
+  const pp = camera.principalPoint;
+  drawMarker(ctx, pp.x, pp.y, COLORS.sp, 'SP', 5);
+}
+
+export function drawVP3(ctx, state, camera) {
+  const r = camera.pictureRect;
+  const pp = camera.principalPoint;
+  const d = camera.focalLength;
+  const tanTheta = camera.horizonOffset * r.w / d;
+
+  if (Math.abs(tanTheta) < 1e-6) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,138,74,0.7)';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('VP3 âˆ', pp.x, r.y - 10);
+    ctx.restore();
+    return;
+  }
+
+  const vpY = pp.y + d / tanTheta;
+  const vpX = pp.x;
+
+  if (state.ui.showGuides) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,138,74,0.22)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    const dx = vpX - pp.x, dy = vpY - pp.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 1) {
+      ctx.beginPath();
+      ctx.moveTo(pp.x - dx / len * 3000, pp.y - dy / len * 3000);
+      ctx.lineTo(pp.x + dx / len * 3000, pp.y + dy / len * 3000);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  const margin = THRESHOLDS.vp3MinMarginPx;
+  if (vpY > margin && vpY < camera.viewportHeight - margin) {
+    ctx.save();
+    ctx.fillStyle = COLORS.vp3;
+    ctx.beginPath(); ctx.arc(vpX, vpY, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(vpX - 12, vpY); ctx.lineTo(vpX + 12, vpY);
+    ctx.moveTo(vpX, vpY - 12); ctx.lineTo(vpX, vpY + 12);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.vp3;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('VP3', vpX + 16, vpY + 4);
+    ctx.restore();
+  } else {
+    const cx = camera.viewportWidth / 2, cy = camera.viewportHeight / 2;
+    const dx = vpX - cx, dy = vpY - cy;
+    const k = Math.max(Math.abs(dx) / (cx - 40), Math.abs(dy) / (cy - 40), 1e-6);
+    const ex = Math.max(30, Math.min(camera.viewportWidth - 30, cx + dx / k));
+    const ey = Math.max(30, Math.min(camera.viewportHeight - 30, cy + dy / k));
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,138,74,0.9)';
+    ctx.beginPath(); ctx.arc(ex, ey, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    const ang = Math.atan2(vpY - cy, vpX - cx);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ex + Math.cos(ang + Math.PI * 0.75) * 6, ey + Math.sin(ang + Math.PI * 0.75) * 6);
+    ctx.lineTo(ex, ey);
+    ctx.lineTo(ex + Math.cos(ang - Math.PI * 0.75) * 6, ey + Math.sin(ang - Math.PI * 0.75) * 6);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.vp3;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    const dist = Math.hypot(vpX - pp.x, vpY - pp.y);
+    ctx.fillText('VP3 ' + Math.round(dist) + 'px', ex, ey + 26);
+    ctx.restore();
+  }
+}
+
+export function drawBoxes(ctx, state, camera) {
+  for (const box of state.document.boxes) {
+    const sel = box.id === state.document.selectedBoxId;
+    const main_cam = box.getMainCenterCam(camera);
+    const R_main = box.getRotationMatrix();
+    const R_main_cam = mulM3M3(camera.R_wc, R_main);
+
+    let linkGeo = null;
+    if (box.hasLink()) {
+      linkGeo = getLinkGeometry(box, camera);
+      if (linkGeo) drawLinkLine(ctx, linkGeo, camera);
+    }
+
+    const mainGeo = drawCubeWireframe(ctx, main_cam, R_main_cam, box.size, camera, sel, true);
+
+    if (sel && mainGeo) {
+      if (state.ui.showTri) drawVPTriangleFor(ctx, box, camera);
+      ctx.fillStyle = COLORS.box.selected;
+      ctx.beginPath(); ctx.arc(box.center.x, box.center.y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1.2; ctx.stroke();
+      drawBoxVPsAndExtensions(ctx, camera, mainGeo.corners_cam, mainGeo.proj, R_main_cam, state.ui.showGuides ? 1.0 : 0.0);
+    }
+
+    if (linkGeo) {
+      const secProj = camera.project3D(linkGeo.Q);
+      if (secProj) {
+        const secSize = { w: box.link.secW, h: box.link.secH, dep: box.link.secDep };
+        const secGeo = drawCubeWireframe(ctx, linkGeo.Q, linkGeo.R_sec_cam, secSize, camera, false, false);
+        if (sel && secGeo && state.ui.showGuidesSec) {
+          drawBoxVPsAndExtensions(ctx, camera, secGeo.corners_cam, secGeo.proj, linkGeo.R_sec_cam, 0.65);
+        }
+      }
+    }
+  }
+}
+
 export function drawSegments(ctx, state, mode) {
   const list = mode === 'exam' ? state.document.examSegments : state.document.segments;
   const selId = mode === 'exam'
@@ -1397,6 +1790,301 @@ export function drawSegments(ctx, state, mode) {
       ctx.strokeStyle = 'rgba(255,255,255,0.85)';
       ctx.lineWidth = 1; ctx.stroke();
     }
+  }
+}
+
+export function drawDraft(ctx, state) {
+  const d = state.interaction.draft;
+  if (!d) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(138,255,184,0.85)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(d.startX, d.startY);
+  ctx.lineTo(d.cursorX, d.cursorY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#8affb8';
+  ctx.beginPath(); ctx.arc(d.startX, d.startY, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  if (d.cursorSnapType) {
+    const color = d.cursorSnapType === 'point' ? '#ffd888' : '#ff8a4a';
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(d.cursorX, d.cursorY, 10, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(d.cursorX, d.cursorY, 4, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(138,255,184,0.65)';
+    ctx.beginPath(); ctx.arc(d.cursorX, d.cursorY, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+export function drawRawGraph(ctx, analysis) {
+  for (const r of analysis) {
+    const color = r.colors.raw;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.7;
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1.2;
+    for (const e of r.raw.edges) {
+      const a = r.raw.vertices[e.aId], b = r.raw.vertices[e.bId];
+      if (!a || !b) continue;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    ctx.restore();
+
+    for (const v of r.raw.vertices) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(v.x, v.y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.restore();
+    }
+    if (r.raw.vertices.length) {
+      const p0 = r.raw.vertices[0];
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText('#' + (r.idx + 1), p0.x + 8, p0.y - 6);
+      ctx.restore();
+    }
+  }
+}
+
+export function drawSimplifiedGraph(ctx, analysis) {
+  for (const r of analysis) {
+    const color = r.colors.simp;
+    const active = new Set();
+    for (const e of r.merged.edges) { active.add(e.aId); active.add(e.bId); }
+    if (!active.size) continue;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([]);
+    for (const e of r.merged.edges) {
+      const a = r.merged.vertices[e.aId], b = r.merged.vertices[e.bId];
+      if (!a || !b) continue;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    ctx.restore();
+
+    for (const v of r.merged.vertices) {
+      if (!active.has(v.id)) continue;
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(v.x, v.y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.restore();
+    }
+
+    const firstId = [...active][0];
+    if (firstId != null) {
+      const fp = r.merged.vertices[firstId];
+      if (fp) {
+        let label;
+        if (r.success) {
+          const fit = r.error.avg < 5 ? 'âœ“' : r.error.avg < 15 ? 'âš ' : 'âœ—';
+          const persp = r.perspective === '2-point' ? '2' : '3';
+          label = `T${r.type}Â·${persp} ${fit}${r.error.avg.toFixed(0)}px`;
+        } else if (r.type) {
+          label = `T${r.type} âœ— ${r.reason}`;
+        } else {
+          label = `? ${r.reason}`;
+        }
+        ctx.save();
+        ctx.font = 'bold 10px monospace';
+        const m = ctx.measureText(label);
+        ctx.fillStyle = 'rgba(0,0,0,0.78)';
+        ctx.fillRect(fp.x + 8, fp.y - 20, m.width + 8, 14);
+        ctx.fillStyle = color;
+        ctx.fillText(label, fp.x + 12, fp.y - 9);
+        ctx.restore();
+      }
+    }
+  }
+}
+
+export function drawRecognized(ctx, analysis, camera) {
+  for (const r of analysis) {
+    if (!r.success) continue;
+    const visible = new Set();
+    for (const e of r.merged.edges) {
+      visible.add(e.aId + '-' + e.bId);
+      visible.add(e.bId + '-' + e.aId);
+    }
+    for (const [a, b] of r.allEdges) {
+      const pa = r.fullVertices.get(a), pb = r.fullVertices.get(b);
+      if (!pa || !pb) continue;
+      const sa = camera.project3D(pa), sb = camera.project3D(pb);
+      if (!sa || !sb) continue;
+      const isVisible = visible.has(a + '-' + b) || visible.has(b + '-' + a);
+      ctx.strokeStyle = isVisible ? COLORS.recognized : COLORS.recognizedHidden;
+      ctx.lineWidth = isVisible ? 2 : 1.2;
+      ctx.setLineDash(isVisible ? [] : [4, 4]);
+      ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    for (const [id, p] of r.fullVertices) {
+      if (typeof id === 'string') continue;
+      const sp = camera.project3D(p);
+      if (!sp) continue;
+      ctx.fillStyle = COLORS.recognized;
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, 3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    const centerVid = r.structure.type === 3 ? r.structure.C : r.structure.A;
+    const centerPos = r.fullVertices.get(centerVid);
+    if (!centerPos) continue;
+    const sc = camera.project3D(centerPos);
+    if (!sc) continue;
+    const persp = r.perspective === '2-point' ? '2' : '3';
+    const fit = r.error.avg < 5 ? 'âœ“' : r.error.avg < 15 ? 'âš ' : 'âœ—';
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = COLORS.recognized;
+    ctx.fillText(`T${r.type}Â·${persp} ${fit}${r.error.avg.toFixed(1)}px`,
+      sc.x + 8, sc.y - 6);
+    ctx.restore();
+  }
+}
+
+export function drawAnalysisVPs(ctx, analysis, camera, view) {
+  const pp = camera.principalPoint;
+  const vw = camera.viewportWidth, vh = camera.viewportHeight;
+  const margin = 40;
+  const vx = view ? view.x : 0, vy = view ? view.y : 0;
+  const cols = { x: COLORS.vp.x, y: COLORS.vp.y, z: COLORS.vp.z };
+  const axes = ['x', 'y', 'z'];
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+  const onScreen = (wx, wy) => {
+    const sx = wx + vx, sy = wy + vy;
+    return sx >= margin && sx <= vw - margin && sy >= margin && sy <= vh - margin;
+  };
+
+  const normalMarker = (wx, wy, col, label) => {
+    ctx.save();
+    ctx.fillStyle = rgba(col, 0.9);
+    ctx.beginPath(); ctx.arc(wx, wy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = rgba(col, 1);
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(label, wx + 9, wy + 4);
+    ctx.restore();
+  };
+
+  const edgeArrow = (wx, wy, col, label) => {
+    const sx = wx + vx, sy = wy + vy;
+    const cx = vw / 2, cy = vh / 2;
+    const dx = sx - cx, dy = sy - cy;
+    const k = Math.max(
+      Math.abs(dx) / (vw / 2 - margin),
+      Math.abs(dy) / (vh / 2 - margin), 1e-6);
+    const ex = Math.max(margin, Math.min(vw - margin, cx + dx / k));
+    const ey = Math.max(margin, Math.min(vh - margin, cy + dy / k));
+    const ang = Math.atan2(dy, dx);
+    ctx.save();
+    ctx.translate(-vx, -vy);  // â† Ñ€Ğ¸ÑÑƒĞµĞ¼ Ğ² ÑĞºÑ€Ğ°Ğ½Ğ½Ñ‹Ñ… ĞºĞ¾Ğ¾Ñ€Ğ´Ğ¸Ğ½Ğ°Ñ‚Ğ°Ñ…
+    ctx.fillStyle = rgba(col, 0.9);
+    ctx.beginPath(); ctx.arc(ex, ey, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ex + Math.cos(ang + Math.PI * 0.75) * 6, ey + Math.sin(ang + Math.PI * 0.75) * 6);
+    ctx.lineTo(ex, ey);
+    ctx.lineTo(ex + Math.cos(ang - Math.PI * 0.75) * 6, ey + Math.sin(ang - Math.PI * 0.75) * 6);
+    ctx.stroke();
+    ctx.fillStyle = rgba(col, 1);
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    const dist = Math.hypot(wx - pp.x, wy - pp.y);
+    ctx.fillText(label + ' ' + Math.round(dist) + 'px', ex, ey + 26);
+    ctx.restore();
+  };
+
+  for (const r of analysis) {
+    if (!r.success || !r.vps) continue;
+    for (let i = 0; i < r.vps.length; i++) {
+      const vp = r.vps[i];
+      if (!vp) continue;
+      const ax = axes[i % 3];
+      const col = cols[ax];
+      const label = 'VP' + ax.toUpperCase();
+
+      if (vp.type === 'finite' && isFinite(vp.x) && isFinite(vp.y)) {
+        if (onScreen(vp.x, vp.y)) normalMarker(vp.x, vp.y, col, label);
+        else edgeArrow(vp.x, vp.y, col, label);
+      } else if ((vp.type === 'infinity' || vp.type === 'axisInf') && vp.dir2D) {
+        const [ux, uy] = vp.dir2D;
+        const len = 110;
+        ctx.save();
+        ctx.strokeStyle = rgba(col, 0.7);
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(pp.x, pp.y);
+        ctx.lineTo(pp.x + ux * len, pp.y + uy * len);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = rgba(col, 0.95);
+        ctx.beginPath();
+        ctx.arc(pp.x + ux * len, pp.y + uy * len, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(label + ' âˆ', pp.x + ux * len + 7, pp.y + uy * len + 4);
+        ctx.restore();
+      }
+    }
+  }
+}
+
+export function drawAnalysisInfo(ctx, analysis, camera) {
+  const pp = camera.principalPoint;
+  for (const r of analysis) {
+    if (!r.success) continue;
+    const centerVid = r.structure.type === 3 ? r.structure.C : r.structure.A;
+    const centerPos = r.fullVertices.get(centerVid);
+    if (!centerPos) continue;
+    const sc = camera.project3D(centerPos);
+    if (!sc) continue;
+
+    const lines = [];
+    const fov = recoveredFovDeg(r.vps, camera);
+    if (fov != null && isFinite(fov)) lines.push(`FOVâ‰ˆ${fov.toFixed(1)}Â°`);
+    if (r.vps) {
+      r.vps.forEach((vp, i) => {
+        const ax = ['X', 'Y', 'Z'][i % 3];
+        if (!vp) return;
+        if (vp.type === 'finite' && isFinite(vp.x) && isFinite(vp.y))
+          lines.push(`VP${ax}(${vp.x.toFixed(0)},${vp.y.toFixed(0)})`);
+        else if (vp.type === 'infinity' || vp.type === 'axisInf')
+          lines.push(`VP${ax} âˆ`);
+      });
+    }
+    lines.push(`SP(${pp.x.toFixed(0)},${pp.y.toFixed(0)})`);
+    if (!lines.length) continue;
+
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    let maxW = 0;
+    for (const l of lines) maxW = Math.max(maxW, ctx.measureText(l).width);
+    const boxH = lines.length * 13 + 6;
+    const bx = sc.x + 8, by = sc.y + 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    ctx.fillRect(bx, by, maxW + 12, boxH);
+    ctx.strokeStyle = 'rgba(255,184,0,0.7)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, maxW + 12, boxH);
+    ctx.fillStyle = '#ffd888';
+    lines.forEach((l, i) => ctx.fillText(l, bx + 6, by + 13 + i * 13));
+    ctx.restore();
   }
 }
 
@@ -1446,7 +2134,8 @@ export class Renderer {
 
     let analysis = [];
     if (isAnalysis &&
-        (state.ui.showRecognized || state.ui.showRawGraph || state.ui.showSimplifiedGraph)) {
+        (state.ui.showRecognized || state.ui.showRawGraph
+        || state.ui.showSimplifiedGraph || state.ui.showAnalysisVPs)) {
       const segs = isExam ? state.document.examSegments : state.document.segments;
       analysis = analyze(segs, camera, { fixedCamera: isExam });
     }
@@ -1470,7 +2159,17 @@ export class Renderer {
 
     if (state.ui.showRawGraph) L.drawRawGraph(ctx, analysis);
     if (state.ui.showSimplifiedGraph) L.drawSimplifiedGraph(ctx, analysis);
-    if (state.ui.showRecognized) L.drawRecognized(ctx, analysis, camera);
+    if (state.ui.showRecognized) {
+      L.drawRecognized(ctx, analysis, camera);
+    }
+    if (state.ui.showAnalysisVPs) {
+      L.drawAnalysisVPs(ctx, analysis, camera, state.view);   // â† view Ğ¿ĞµÑ€ĞµĞ´Ğ°Ğ½
+      L.drawAnalysisInfo(ctx, analysis, camera);
+    }
+    if (isAnalysis && state.ui.showSP) {
+      const hasSuccess = analysis.some((r) => r.success);
+      if (hasSuccess) L.drawSP(ctx, camera);
+    }
 
     ctx.restore();
   }
@@ -1604,6 +2303,7 @@ SOFTWARE.
       <button class="bb-btn ortho" id="triBtn" title="Ğ¢Ñ€ĞµÑƒĞ³Ğ¾Ğ»ÑŒĞ½Ğ¸Ğº VP">Ğ¢Ñ€</button>
       <button class="bb-btn ortho" id="orthoTableBtn" title="ĞÑ€Ñ‚Ğ¾-Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğ°">ĞÑ€Ñ‚Ğ¾</button>
       <button class="bb-btn reco" id="cubeRecoBtn" title="Ğ Ğ°ÑĞ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ÑŒ ĞºÑƒĞ±Ñ‹" style="display:none">ĞšÑƒĞ±</button>
+      <button class="bb-btn vp-an" id="vpAnalysisBtn" title="Ğ¢Ğ¾Ñ‡ĞºĞ¸ ÑÑ…Ğ¾Ğ´Ğ° Ğ¸ FOV" style="display:none">Ğ’ĞŸ</button>
       <button class="bb-btn raw" id="rawGraphBtn" title="Ğ¢Ğ¾Ñ‡ĞºĞ¸ Ğ¸ÑÑ…Ğ¾Ğ´Ğ½Ğ¾Ğ³Ğ¾ Ğ³Ñ€Ğ°Ñ„Ğ°" style="display:none">Ğ¢Ğ¾Ñ‡ĞºĞ¸</button>
       <button class="bb-btn simp" id="simpGraphBtn" title="Ğ£Ğ¿Ñ€Ğ¾Ñ‰Ñ‘Ğ½Ğ½Ñ‹Ğ¹ Ğ³Ñ€Ğ°Ñ„" style="display:none">Ğ£Ğ¿Ñ€Ğ¾Ñ‰</button>
       <button class="bb-btn" id="undoBtn" disabled title="ĞÑ‚Ğ¼ĞµĞ½Ğ¸Ñ‚ÑŒ">â†¶</button>
@@ -1740,6 +2440,28 @@ export function computeViewMetrics(camera) {
     distanceCm: camera.distanceToScreenCm,
     distanceM: camera.distanceToScreenCm / 100,
   };
+}
+
+export function recoveredFovDeg(vps, camera) {
+  if (!vps) return null;
+  const pp = camera.principalPoint;
+  const finite = vps.filter((v) => v && v.type === 'finite'
+    && isFinite(v.x) && isFinite(v.y));
+  if (finite.length < 2) return null;
+  const ds = [];
+  for (let i = 0; i < finite.length; i++) {
+    for (let j = i + 1; j < finite.length; j++) {
+      const v1 = finite[i], v2 = finite[j];
+      const dot = (v1.x - pp.x) * (v2.x - pp.x) + (v1.y - pp.y) * (v2.y - pp.y);
+      if (dot < 0) ds.push(-dot);
+    }
+  }
+  if (!ds.length) return null;
+  const d2 = ds.reduce((a, b) => a + b, 0) / ds.length;
+  if (!(d2 > 0)) return null;
+  const d = Math.sqrt(d2);
+  const w = camera.pictureRect.w;
+  return 2 * Math.atan((w / 2) / d) * 180 / Math.PI;
 }
 
 
@@ -2012,9 +2734,26 @@ function getSelectedBox(state) {
   return state.document.getSelectedBox();
 }
 
-// ===== Ğ ĞĞ—ĞœĞ•Ğ Ğ«: UI 1..100, Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾ UI*10 =====
+function getByPath(o, path) {
+  return path.split('.').reduce((x, k) => (x == null ? null : x[k]), o);
+}
+
+function setByPath(o, path, value) {
+  const ps = path.split('.');
+  let c = o;
+  for (let i = 0; i < ps.length - 1; i++) c = c[ps[i]];
+  c[ps[ps.length - 1]] = value;
+}
+
+function structureKeyForBox(box) {
+  if (!box) return 'empty';
+  return box.link ? 'linked' : 'simple';
+}
+
+// ===== SizePanel =====
+// UI: 1..100, Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾Ğµ Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ = UI*10
 function buildSizeRow(box, label, key, minUI, maxUI) {
-  const realVal = key.split('.').reduce((o, k) => (o == null ? null : o[k]), box);
+  const realVal = getByPath(box, key);
   const uiVal = Math.round(realVal / 10);
   return `<div class="row">
     <label>${label}</label>
@@ -2023,9 +2762,10 @@ function buildSizeRow(box, label, key, minUI, maxUI) {
   </div>`;
 }
 
-// ===== Ğ£Ğ“Ğ›Ğ«: UI -36..36, Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾ UI*5Â° =====
+// ===== RotationPanel =====
+// UI: -36..36, Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾Ğµ Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ = UI*5Â° (Ğ² Ñ€Ğ°Ğ´Ğ¸Ğ°Ğ½Ğ°Ñ…)
 function buildAngleRow(box, label, key) {
-  const realRad = key.split('.').reduce((o, k) => (o == null ? null : o[k]), box);
+  const realRad = getByPath(box, key);
   const uiVal = Math.round(rad2deg(realRad) / 5);
   return `<div class="row">
     <label>${label}</label>
@@ -2036,15 +2776,15 @@ function buildAngleRow(box, label, key) {
   </div>`;
 }
 
-function setByPath(o, path, value) {
-  const ps = path.split('.');
-  let c = o;
-  for (let i = 0; i < ps.length - 1; i++) c = c[ps[i]];
-  c[ps[ps.length - 1]] = value;
-}
-
 class SizePanel {
-  constructor({ state, app }) { this.state = state; this.app = app; this.el = null; this.rowsEl = null; this.btn = null; }
+  constructor({ state, app }) {
+    this.state = state;
+    this.app = app;
+    this.el = null;
+    this.rowsEl = null;
+    this.btn = null;
+    this._structureKey = null;
+  }
 
   mount() {
     this.el = $('panelSize');
@@ -2062,18 +2802,33 @@ class SizePanel {
   update() {
     if (this.state.ui.mode !== 'theory') return;
     const box = getSelectedBox(this.state);
-    if (!box) {
-      this.rowsEl.innerHTML = '<div class="hint">Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ ĞºÑƒĞ±</div>';
+    const key = structureKeyForBox(box);
+
+    if (key === 'empty') {
+      if (this._structureKey !== 'empty') {
+        this.rowsEl.innerHTML = '<div class="hint">Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ ĞºÑƒĞ±</div>';
+        this._structureKey = 'empty';
+      }
       this.btn.disabled = true;
       return;
     }
+
     this.btn.disabled = false;
-    const linked = !!box.link;
+
+    if (this._structureKey !== key) {
+      this._structureKey = key;
+      this._build(box);
+      this._attachHandlers();
+    }
+    this._syncValues(box);
+  }
+
+  _build(box) {
     let html = '<div class="sec-h">ĞÑĞ½Ğ¾Ğ²Ğ½Ğ¾Ğ¹</div>';
     html += buildSizeRow(box, 'Ğ¨', 'size.w', 1, 100);
     html += buildSizeRow(box, 'Ğ’', 'size.h', 1, 100);
     html += buildSizeRow(box, 'Ğ“', 'size.dep', 1, 100);
-    if (linked) {
+    if (box.link) {
       html += '<div class="sec-h link">Ğ¡Ğ²ÑĞ·ÑŒ</div>';
       html += buildSizeRow(box, 'd1', 'link.d1', 0, 200);
       html += buildSizeRow(box, 'd2', 'link.d2', 0, 200);
@@ -2083,6 +2838,9 @@ class SizePanel {
       html += buildSizeRow(box, 'Ğ“', 'link.secDep', 1, 100);
     }
     this.rowsEl.innerHTML = html;
+  }
+
+  _attachHandlers() {
     this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
       inp.addEventListener('input', (e) => {
         const b = getSelectedBox(this.state);
@@ -2096,10 +2854,33 @@ class SizePanel {
       inp.addEventListener('change', () => this.app.pushHistory());
     });
   }
+
+  _syncValues(box) {
+    this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
+      const key = inp.dataset.key;
+      const realVal = getByPath(box, key);
+      if (realVal == null) return;
+      const uiVal = Math.round(realVal / 10);
+      // Ğ½Ğµ Ñ‚Ñ€Ğ¾Ğ³Ğ°ĞµĞ¼ value, ĞµÑĞ»Ğ¸ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ ÑĞµĞ¹Ñ‡Ğ°Ñ Ğ´ĞµÑ€Ğ¶Ğ¸Ñ‚ ÑÑ‚Ğ¾Ñ‚ Ğ¿Ğ¾Ğ»Ğ·ÑƒĞ½Ğ¾Ğº
+      if (document.activeElement === inp) return;
+      if (Number(inp.value) !== uiVal) inp.value = uiVal;
+      const sp = this.rowsEl.querySelector(`[data-val-key="${key}"]`);
+      if (sp) {
+        const txt = String(uiVal);
+        if (sp.textContent !== txt) sp.textContent = txt;
+      }
+    });
+  }
 }
 
 class RotationPanel {
-  constructor({ state, app }) { this.state = state; this.app = app; this.el = null; this.rowsEl = null; }
+  constructor({ state, app }) {
+    this.state = state;
+    this.app = app;
+    this.el = null;
+    this.rowsEl = null;
+    this._structureKey = null;
+  }
 
   mount() {
     this.el = $('panelRot');
@@ -2109,14 +2890,31 @@ class RotationPanel {
   update() {
     if (this.state.ui.mode !== 'theory') return;
     const box = getSelectedBox(this.state);
-    if (!box) { this.rowsEl.innerHTML = '<div class="hint">â€”</div>'; return; }
-    const linked = !!box.link;
+    const key = structureKeyForBox(box);
+
+    if (key === 'empty') {
+      if (this._structureKey !== 'empty') {
+        this.rowsEl.innerHTML = '<div class="hint">â€”</div>';
+        this._structureKey = 'empty';
+      }
+      return;
+    }
+
+    if (this._structureKey !== key) {
+      this._structureKey = key;
+      this._build(box);
+      this._attachHandlers();
+    }
+    this._syncValues(box);
+  }
+
+  _build(box) {
     let html = '<div class="sec-h">ĞÑĞ½Ğ¾Ğ²Ğ½Ğ¾Ğ¹</div>';
     html += buildAngleRow(box, 'X', 'rotation.rx');
     html += buildAngleRow(box, 'Y', 'rotation.ry');
     html += buildAngleRow(box, 'Z', 'rotation.rz');
     html += '<button class="reset-btn" id="resetRotBtn">Ğ¡Ğ±Ñ€Ğ¾Ñ</button>';
-    if (linked) {
+    if (box.link) {
       html += '<div class="sec-h link">Ğ¡Ğ²ÑĞ·ÑŒ</div>';
       html += buildAngleRow(box, 'Î¸', 'link.theta');
       html += buildAngleRow(box, 'Î±', 'link.alpha');
@@ -2124,7 +2922,9 @@ class RotationPanel {
       html += '<button class="reset-btn link" id="resetLinkBtn">Ğ¡Ğ±Ñ€Ğ¾Ñ</button>';
     }
     this.rowsEl.innerHTML = html;
+  }
 
+  _attachHandlers() {
     this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
       inp.addEventListener('input', (e) => {
         const b = getSelectedBox(this.state);
@@ -2144,7 +2944,8 @@ class RotationPanel {
         if (!b) return;
         const key = btn.dataset.stepKey;
         const delta = Number(btn.dataset.step);
-        const curUI = Math.round(key.split('.').reduce((o, k) => o[k], b) * 180 / Math.PI / 5);
+        const curRad = getByPath(b, key);
+        const curUI = Math.round(rad2deg(curRad) / 5);
         const newUI = curUI + delta;
         if (newUI < -36 || newUI > 36) return;
         setByPath(b, key, newUI * 5 * Math.PI / 180);
@@ -2176,8 +2977,25 @@ class RotationPanel {
       this.app.pushHistory();
     });
   }
+
+  _syncValues(box) {
+    this.rowsEl.querySelectorAll('input[data-key]').forEach((inp) => {
+      const key = inp.dataset.key;
+      const realRad = getByPath(box, key);
+      if (realRad == null) return;
+      const uiVal = Math.round(rad2deg(realRad) / 5);
+      if (document.activeElement === inp) return;
+      if (Number(inp.value) !== uiVal) inp.value = uiVal;
+      const sp = this.rowsEl.querySelector(`[data-val-key="${key}"]`);
+      if (sp) {
+        const txt = (uiVal * 5) + 'Â°';
+        if (sp.textContent !== txt) sp.textContent = txt;
+      }
+    });
+  }
 }
 
+// ===== OrthoPanel â€” Ğ±ĞµĞ· Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ğ¹ Ğ² ÑÑ‚Ñ€ÑƒĞºÑ‚ÑƒÑ€Ğµ, Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ñ‡Ñ‚ĞµĞ½Ğ¸Ğµ =====
 class OrthoPanel {
   constructor({ state }) { this.state = state; this.el = null; this.rowsEl = null; }
   mount() { this.el = $('panelOrtho'); this.rowsEl = $('orthoRows'); }
@@ -2225,6 +3043,7 @@ class OrthoPanel {
   }
 }
 
+// ===== SnapPanel, StylePanel â€” Ğ±ĞµĞ· Ğ¿Ğ¾Ğ»Ğ·ÑƒĞ½ĞºĞ¾Ğ², DOM Ğ½Ğµ Ğ¿ĞµÑ€ĞµÑĞ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ÑÑ Ğ¿Ñ€Ğ¸ update =====
 class SnapPanel {
   constructor({ state }) { this.state = state; this.el = null; }
   mount() {
@@ -2346,6 +3165,7 @@ export class UIManager {
   _$(id) { return document.getElementById(id); }
 
   mount(root) {
+    this._els.vpAnalysisBtn = this._$('vpAnalysisBtn');
     this._els.fovCell = this._$('fovCell');
     this._els.horizonRow = this._$('horizonRow');
     this._els.fovSlider = this._$('fovSlider');
@@ -2429,6 +3249,7 @@ export class UIManager {
       this.state.ui[key] = !this.state.ui[key];
       this.state.emit();
     };
+    this._$('vpAnalysisBtn').addEventListener('click', toggle('showAnalysisVPs'));
     this._$('spBtn').addEventListener('click', toggle('showSP'));
     this._$('guidesBtn').addEventListener('click', toggle('showGuides'));
     this._$('guidesSecBtn').addEventListener('click', toggle('showGuidesSec'));
@@ -2501,6 +3322,7 @@ export class UIManager {
     this._$('cubeRecoBtn').style.display = isAnalysis ? '' : 'none';
     this._$('rawGraphBtn').style.display = isAnalysis ? '' : 'none';
     this._$('simpGraphBtn').style.display = isAnalysis ? '' : 'none';
+    this._$('vpAnalysisBtn').style.display = isAnalysis ? '' : 'none';
   }
 
   _updateCameraControls() {
@@ -2538,6 +3360,8 @@ export class UIManager {
     setActive('cubeRecoBtn', st.ui.showRecognized);
     setActive('rawGraphBtn', st.ui.showRawGraph);
     setActive('simpGraphBtn', st.ui.showSimplifiedGraph);
+    setActive('vpAnalysisBtn', st.ui.showAnalysisVPs);
+
 
     document.querySelectorAll('.mode-btn').forEach((b) =>
       b.classList.toggle('active', b.dataset.mode === st.ui.mode));
@@ -3030,6 +3854,7 @@ export class AppState {
       showTri: true,
       showOrthoTable: true,
       showRecognized: false,
+      showAnalysisVPs: true,
       showRawGraph: false,
       showSimplifiedGraph: false,
       tablesMode: 'full',
@@ -3222,1130 +4047,5 @@ export function graphColors(idx) {
     simp: COLORS.rainbow[(idx + 2) % 7],
   };
 }
-
-
-=== FILE: .git/index ===
-DIRC      jí‚k6à½Ájí‚k6à½Á Ñ  ¤  è  è  &;Ò²;õn2ZÍ–¾ªjµ:ƒ LICENSE   jí‚k6âyjí‚k6ây à  ¤  è  è  Q³¾`G(ñá¨N(¨ÖæÌĞÁ.ÌÆ‚µ 	README.md jí‚k6âyjí‚k6ây á  ¤  è  è  ÆÚ;Ò…’rD3ÎËikvJ‚÷ÊÑ 	index.htm TREE    3 0
-.wP€#ëúôU¨Š¦»Í^ÄŸG´{ßûrÊuØ¢ÆA¶@£ô
-
-
-=== FILE: .git/info/exclude ===
-# git ls-files --others --exclude-from=.git/info/exclude
-# Lines that start with '#' are comments.
-# For a project mostly in C, the following would be a good set of
-# exclude patterns (uncomment them if you want to use them):
-# *.[oa]
-# *~
-
-
-
-=== FILE: .git/logs/refs/remotes/origin/HEAD ===
-0000000000000000000000000000000000000000 2a765535b8506eb131ad05ee7fc33fe180da170e KiselkovD <denis.kiselkov@list.ru> 1793950315 +0300	clone: from https://github.com/KiselkovD/Cube-Drawing-Trainer.git
-
-
-
-=== FILE: .git/logs/refs/heads/main ===
-0000000000000000000000000000000000000000 2a765535b8506eb131ad05ee7fc33fe180da170e KiselkovD <denis.kiselkov@list.ru> 1793950315 +0300	clone: from https://github.com/KiselkovD/Cube-Drawing-Trainer.git
-
-
-
-=== FILE: .git/logs/HEAD ===
-0000000000000000000000000000000000000000 2a765535b8506eb131ad05ee7fc33fe180da170e KiselkovD <denis.kiselkov@list.ru> 1793950315 +0300	clone: from https://github.com/KiselkovD/Cube-Drawing-Trainer.git
-
-
-
-=== FILE: .git/hooks/pre-commit.sample ===
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git commit" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message if
-# it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-commit".
-
-if git rev-parse --verify HEAD >/dev/null 2>&1
-then
-	against=HEAD
-else
-	# Initial commit: diff against an empty tree object
-	against=$(git hash-object -t tree /dev/null)
-fi
-
-# If you want to allow non-ASCII filenames set this variable to true.
-allownonascii=$(git config --type=bool hooks.allownonascii)
-
-# Redirect output to stderr.
-exec 1>&2
-
-# Cross platform projects tend to avoid non-ASCII filenames; prevent
-# them from being added to the repository. We exploit the fact that the
-# printable range starts at the space character and ends with tilde.
-if [ "$allownonascii" != "true" ] &&
-	# Note that the use of brackets around a tr range is ok here, (it's
-	# even required, for portability to Solaris 10's /usr/bin/tr), since
-	# the square bracket bytes happen to fall in the designated range.
-	test $(git diff-index --cached --name-only --diff-filter=A -z $against |
-	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
-then
-	cat <<\EOF
-Error: Attempt to add a non-ASCII file name.
-
-This can cause problems if you want to work with people on other platforms.
-
-To be portable it is advisable to rename the file.
-
-If you know what you are doing you can disable this check using:
-
-  git config hooks.allownonascii true
-EOF
-	exit 1
-fi
-
-# If there are whitespace errors, print the offending file names and fail.
-exec git diff-index --check --cached $against --
-
-
-
-=== FILE: .git/hooks/pre-rebase.sample ===
-#!/bin/sh
-#
-# Copyright (c) 2006, 2008 Junio C Hamano
-#
-# The "pre-rebase" hook is run just before "git rebase" starts doing
-# its job, and can prevent the command from running by exiting with
-# non-zero status.
-#
-# The hook is called with the following parameters:
-#
-# $1 -- the upstream the series was forked from.
-# $2 -- the branch being rebased (or empty when rebasing the current branch).
-#
-# This sample shows how to prevent topic branches that are already
-# merged to 'next' branch from getting rebased, because allowing it
-# would result in rebasing already published history.
-
-publish=next
-basebranch="$1"
-if test "$#" = 2
-then
-	topic="refs/heads/$2"
-else
-	topic=`git symbolic-ref HEAD` ||
-	exit 0 ;# we do not interrupt rebasing detached HEAD
-fi
-
-case "$topic" in
-refs/heads/??/*)
-	;;
-*)
-	exit 0 ;# we do not interrupt others.
-	;;
-esac
-
-# Now we are dealing with a topic branch being rebased
-# on top of master.  Is it OK to rebase it?
-
-# Does the topic really exist?
-git show-ref -q "$topic" || {
-	echo >&2 "No such branch $topic"
-	exit 1
-}
-
-# Is topic fully merged to master?
-not_in_master=`git rev-list --pretty=oneline ^master "$topic"`
-if test -z "$not_in_master"
-then
-	echo >&2 "$topic is fully merged to master; better remove it."
-	exit 1 ;# we could allow it, but there is no point.
-fi
-
-# Is topic ever merged to next?  If so you should not be rebasing it.
-only_next_1=`git rev-list ^master "^$topic" ${publish} | sort`
-only_next_2=`git rev-list ^master           ${publish} | sort`
-if test "$only_next_1" = "$only_next_2"
-then
-	not_in_topic=`git rev-list "^$topic" master`
-	if test -z "$not_in_topic"
-	then
-		echo >&2 "$topic is already up to date with master"
-		exit 1 ;# we could allow it, but there is no point.
-	else
-		exit 0
-	fi
-else
-	not_in_next=`git rev-list --pretty=oneline ^${publish} "$topic"`
-	/usr/bin/perl -e '
-		my $topic = $ARGV[0];
-		my $msg = "* $topic has commits already merged to public branch:\n";
-		my (%not_in_next) = map {
-			/^([0-9a-f]+) /;
-			($1 => 1);
-		} split(/\n/, $ARGV[1]);
-		for my $elem (map {
-				/^([0-9a-f]+) (.*)$/;
-				[$1 => $2];
-			} split(/\n/, $ARGV[2])) {
-			if (!exists $not_in_next{$elem->[0]}) {
-				if ($msg) {
-					print STDERR $msg;
-					undef $msg;
-				}
-				print STDERR " $elem->[1]\n";
-			}
-		}
-	' "$topic" "$not_in_next" "$not_in_master"
-	exit 1
-fi
-
-<<\DOC_END
-
-This sample hook safeguards topic branches that have been
-published from being rewound.
-
-The workflow assumed here is:
-
- * Once a topic branch forks from "master", "master" is never
-   merged into it again (either directly or indirectly).
-
- * Once a topic branch is fully cooked and merged into "master",
-   it is deleted.  If you need to build on top of it to correct
-   earlier mistakes, a new topic branch is created by forking at
-   the tip of the "master".  This is not strictly necessary, but
-   it makes it easier to keep your history simple.
-
- * Whenever you need to test or publish your changes to topic
-   branches, merge them into "next" branch.
-
-The script, being an example, hardcodes the publish branch name
-to be "next", but it is trivial to make it configurable via
-$GIT_DIR/config mechanism.
-
-With this workflow, you would want to know:
-
-(1) ... if a topic branch has ever been merged to "next".  Young
-    topic branches can have stupid mistakes you would rather
-    clean up before publishing, and things that have not been
-    merged into other branches can be easily rebased without
-    affecting other people.  But once it is published, you would
-    not want to rewind it.
-
-(2) ... if a topic branch has been fully merged to "master".
-    Then you can delete it.  More importantly, you should not
-    build on top of it -- other people may already want to
-    change things related to the topic as patches against your
-    "master", so if you need further changes, it is better to
-    fork the topic (perhaps with the same name) afresh from the
-    tip of "master".
-
-Let's look at this example:
-
-		   o---o---o---o---o---o---o---o---o---o "next"
-		  /       /           /           /
-		 /   a---a---b A     /           /
-		/   /               /           /
-	       /   /   c---c---c---c B         /
-	      /   /   /             \         /
-	     /   /   /   b---b C     \       /
-	    /   /   /   /             \     /
-    ---o---o---o---o---o---o---o---o---o---o---o "master"
-
-
-A, B and C are topic branches.
-
- * A has one fix since it was merged up to "next".
-
- * B has finished.  It has been fully merged up to "master" and "next",
-   and is ready to be deleted.
-
- * C has not merged to "next" at all.
-
-We would want to allow C to be rebased, refuse A, and encourage
-B to be deleted.
-
-To compute (1):
-
-	git rev-list ^master ^topic next
-	git rev-list ^master        next
-
-	if these match, topic has not merged in next at all.
-
-To compute (2):
-
-	git rev-list master..topic
-
-	if this is empty, it is fully merged to "master".
-
-DOC_END
-
-
-
-=== FILE: .git/hooks/pre-receive.sample ===
-#!/bin/sh
-#
-# An example hook script to make use of push options.
-# The example simply echoes all push options that start with 'echoback='
-# and rejects all pushes when the "reject" push option is used.
-#
-# To enable this hook, rename this file to "pre-receive".
-
-if test -n "$GIT_PUSH_OPTION_COUNT"
-then
-	i=0
-	while test "$i" -lt "$GIT_PUSH_OPTION_COUNT"
-	do
-		eval "value=\$GIT_PUSH_OPTION_$i"
-		case "$value" in
-		echoback=*)
-			echo "echo from the pre-receive-hook: ${value#*=}" >&2
-			;;
-		reject)
-			exit 1
-		esac
-		i=$((i + 1))
-	done
-fi
-
-
-
-=== FILE: .git/hooks/pre-applypatch.sample ===
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed
-# by applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-applypatch".
-
-. git-sh-setup
-precommit="$(git rev-parse --git-path hooks/pre-commit)"
-test -x "$precommit" && exec "$precommit" ${1+"$@"}
-:
-
-
-
-=== FILE: .git/hooks/applypatch-msg.sample ===
-#!/bin/sh
-#
-# An example hook script to check the commit log message taken by
-# applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.  The hook is
-# allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "applypatch-msg".
-
-. git-sh-setup
-commitmsg="$(git rev-parse --git-path hooks/commit-msg)"
-test -x "$commitmsg" && exec "$commitmsg" ${1+"$@"}
-:
-
-
-
-=== FILE: .git/hooks/update.sample ===
-#!/bin/sh
-#
-# An example hook script to block unannotated tags from entering.
-# Called by "git receive-pack" with arguments: refname sha1-old sha1-new
-#
-# To enable this hook, rename this file to "update".
-#
-# Config
-# ------
-# hooks.allowunannotated
-#   This boolean sets whether unannotated tags will be allowed into the
-#   repository.  By default they won't be.
-# hooks.allowdeletetag
-#   This boolean sets whether deleting tags will be allowed in the
-#   repository.  By default they won't be.
-# hooks.allowmodifytag
-#   This boolean sets whether a tag may be modified after creation. By default
-#   it won't be.
-# hooks.allowdeletebranch
-#   This boolean sets whether deleting branches will be allowed in the
-#   repository.  By default they won't be.
-# hooks.denycreatebranch
-#   This boolean sets whether remotely creating branches will be denied
-#   in the repository.  By default this is allowed.
-#
-
-# --- Command line
-refname="$1"
-oldrev="$2"
-newrev="$3"
-
-# --- Safety check
-if [ -z "$GIT_DIR" ]; then
-	echo "Don't run this script from the command line." >&2
-	echo " (if you want, you could supply GIT_DIR then run" >&2
-	echo "  $0 <ref> <oldrev> <newrev>)" >&2
-	exit 1
-fi
-
-if [ -z "$refname" -o -z "$oldrev" -o -z "$newrev" ]; then
-	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
-	exit 1
-fi
-
-# --- Config
-allowunannotated=$(git config --type=bool hooks.allowunannotated)
-allowdeletebranch=$(git config --type=bool hooks.allowdeletebranch)
-denycreatebranch=$(git config --type=bool hooks.denycreatebranch)
-allowdeletetag=$(git config --type=bool hooks.allowdeletetag)
-allowmodifytag=$(git config --type=bool hooks.allowmodifytag)
-
-# check for no description
-projectdesc=$(sed -e '1q' "$GIT_DIR/description")
-case "$projectdesc" in
-"Unnamed repository"* | "")
-	echo "*** Project description file hasn't been set" >&2
-	exit 1
-	;;
-esac
-
-# --- Check types
-# if $newrev is 0000...0000, it's a commit to delete a ref.
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-if [ "$newrev" = "$zero" ]; then
-	newrev_type=delete
-else
-	newrev_type=$(git cat-file -t $newrev)
-fi
-
-case "$refname","$newrev_type" in
-	refs/tags/*,commit)
-		# un-annotated tag
-		short_refname=${refname##refs/tags/}
-		if [ "$allowunannotated" != "true" ]; then
-			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
-			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,delete)
-		# delete tag
-		if [ "$allowdeletetag" != "true" ]; then
-			echo "*** Deleting a tag is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,tag)
-		# annotated tag
-		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
-		then
-			echo "*** Tag '$refname' already exists." >&2
-			echo "*** Modifying a tag is not allowed in this repository." >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,commit)
-		# branch
-		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
-			echo "*** Creating a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,delete)
-		# delete branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/remotes/*,commit)
-		# tracking branch
-		;;
-	refs/remotes/*,delete)
-		# delete tracking branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	*)
-		# Anything else (is there anything else?)
-		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
-		exit 1
-		;;
-esac
-
-# --- Finished
-exit 0
-
-
-
-=== FILE: .git/hooks/post-update.sample ===
-#!/bin/sh
-#
-# An example hook script to prepare a packed repository for use over
-# dumb transports.
-#
-# To enable this hook, rename this file to "post-update".
-
-exec git update-server-info
-
-
-
-=== FILE: .git/hooks/sendemail-validate.sample ===
-#!/bin/sh
-
-# An example hook script to validate a patch (and/or patch series) before
-# sending it via email.
-#
-# The hook should exit with non-zero status after issuing an appropriate
-# message if it wants to prevent the email(s) from being sent.
-#
-# To enable this hook, rename this file to "sendemail-validate".
-#
-# By default, it will only check that the patch(es) can be applied on top of
-# the default upstream branch without conflicts in a secondary worktree. After
-# validation (successful or not) of the last patch of a series, the worktree
-# will be deleted.
-#
-# The following config variables can be set to change the default remote and
-# remote ref that are used to apply the patches against:
-#
-#   sendemail.validateRemote (default: origin)
-#   sendemail.validateRemoteRef (default: HEAD)
-#
-# Replace the TODO placeholders with appropriate checks according to your
-# needs.
-
-validate_cover_letter () {
-	file="$1"
-	# TODO: Replace with appropriate checks (e.g. spell checking).
-	true
-}
-
-validate_patch () {
-	file="$1"
-	# Ensure that the patch applies without conflicts.
-	git am -3 "$file" || return
-	# TODO: Replace with appropriate checks for this patch
-	# (e.g. checkpatch.pl).
-	true
-}
-
-validate_series () {
-	# TODO: Replace with appropriate checks for the whole series
-	# (e.g. quick build, coding style checks, etc.).
-	true
-}
-
-# main -------------------------------------------------------------------------
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = 1
-then
-	remote=$(git config --default origin --get sendemail.validateRemote) &&
-	ref=$(git config --default HEAD --get sendemail.validateRemoteRef) &&
-	worktree=$(mktemp --tmpdir -d sendemail-validate.XXXXXXX) &&
-	git worktree add -fd --checkout "$worktree" "refs/remotes/$remote/$ref" &&
-	git config --replace-all sendemail.validateWorktree "$worktree"
-else
-	worktree=$(git config --get sendemail.validateWorktree)
-fi || {
-	echo "sendemail-validate: error: failed to prepare worktree" >&2
-	exit 1
-}
-
-unset GIT_DIR GIT_WORK_TREE
-cd "$worktree" &&
-
-if grep -q "^diff --git " "$1"
-then
-	validate_patch "$1"
-else
-	validate_cover_letter "$1"
-fi &&
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
-then
-	git config --unset-all sendemail.validateWorktree &&
-	trap 'git worktree remove -ff "$worktree"' EXIT &&
-	validate_series
-fi
-
-
-
-=== FILE: .git/hooks/pre-push.sample ===
-#!/bin/sh
-
-# An example hook script to verify what is about to be pushed.  Called by "git
-# push" after it has checked the remote status, but before anything has been
-# pushed.  If this script exits with a non-zero status nothing will be pushed.
-#
-# This hook is called with the following parameters:
-#
-# $1 -- Name of the remote to which the push is being done
-# $2 -- URL to which the push is being done
-#
-# If pushing without using a named remote those arguments will be equal.
-#
-# Information about the commits which are being pushed is supplied as lines to
-# the standard input in the form:
-#
-#   <local ref> <local oid> <remote ref> <remote oid>
-#
-# This sample shows how to prevent push of commits where the log message starts
-# with "WIP" (work in progress).
-
-remote="$1"
-url="$2"
-
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-
-while read local_ref local_oid remote_ref remote_oid
-do
-	if test "$local_oid" = "$zero"
-	then
-		# Handle delete
-		:
-	else
-		if test "$remote_oid" = "$zero"
-		then
-			# New branch, examine all commits
-			range="$local_oid"
-		else
-			# Update to existing branch, examine new commits
-			range="$remote_oid..$local_oid"
-		fi
-
-		# Check for WIP commit
-		commit=$(git rev-list -n 1 --grep '^WIP' "$range")
-		if test -n "$commit"
-		then
-			echo >&2 "Found WIP commit in $local_ref, not pushing"
-			exit 1
-		fi
-	fi
-done
-
-exit 0
-
-
-
-=== FILE: .git/hooks/commit-msg.sample ===
-#!/bin/sh
-#
-# An example hook script to check the commit log message.
-# Called by "git commit" with one argument, the name of the file
-# that has the commit message.  The hook should exit with non-zero
-# status after issuing an appropriate message if it wants to stop the
-# commit.  The hook is allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "commit-msg".
-
-# Uncomment the below to add a Signed-off-by line to the message.
-# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
-# hook is more suited to it.
-#
-# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
-
-# This example catches duplicate Signed-off-by lines.
-
-test "" = "$(grep '^Signed-off-by: ' "$1" |
-	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
-	echo >&2 Duplicate Signed-off-by lines.
-	exit 1
-}
-
-
-
-=== FILE: .git/hooks/prepare-commit-msg.sample ===
-#!/bin/sh
-#
-# An example hook script to prepare the commit log message.
-# Called by "git commit" with the name of the file that has the
-# commit message, followed by the description of the commit
-# message's source.  The hook's purpose is to edit the commit
-# message file.  If the hook fails with a non-zero status,
-# the commit is aborted.
-#
-# To enable this hook, rename this file to "prepare-commit-msg".
-
-# This hook includes three examples. The first one removes the
-# "# Please enter the commit message..." help message.
-#
-# The second includes the output of "git diff --name-status -r"
-# into the message, just before the "git status" output.  It is
-# commented because it doesn't cope with --amend or with squashed
-# commits.
-#
-# The third example adds a Signed-off-by line to the message, that can
-# still be edited.  This is rarely a good idea.
-
-COMMIT_MSG_FILE=$1
-COMMIT_SOURCE=$2
-SHA1=$3
-
-/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
-
-# case "$COMMIT_SOURCE,$SHA1" in
-#  ,|template,)
-#    /usr/bin/perl -i.bak -pe '
-#       print "\n" . `git diff --cached --name-status -r`
-# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
-#  *) ;;
-# esac
-
-# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
-# if test -z "$COMMIT_SOURCE"
-# then
-#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
-# fi
-
-
-
-=== FILE: .git/hooks/push-to-checkout.sample ===
-#!/bin/sh
-
-# An example hook script to update a checked-out tree on a git push.
-#
-# This hook is invoked by git-receive-pack(1) when it reacts to git
-# push and updates reference(s) in its repository, and when the push
-# tries to update the branch that is currently checked out and the
-# receive.denyCurrentBranch configuration variable is set to
-# updateInstead.
-#
-# By default, such a push is refused if the working tree and the index
-# of the remote repository has any difference from the currently
-# checked out commit; when both the working tree and the index match
-# the current commit, they are updated to match the newly pushed tip
-# of the branch. This hook is to be used to override the default
-# behaviour; however the code below reimplements the default behaviour
-# as a starting point for convenient modification.
-#
-# The hook receives the commit with which the tip of the current
-# branch is going to be updated:
-commit=$1
-
-# It can exit with a non-zero status to refuse the push (when it does
-# so, it must not modify the index or the working tree).
-die () {
-	echo >&2 "$*"
-	exit 1
-}
-
-# Or it can make any necessary changes to the working tree and to the
-# index to bring them to the desired state when the tip of the current
-# branch is updated to the new commit, and exit with a zero status.
-#
-# For example, the hook can simply run git read-tree -u -m HEAD "$1"
-# in order to emulate git fetch that is run in the reverse direction
-# with git push, as the two-tree form of git read-tree -u -m is
-# essentially the same as git switch or git checkout that switches
-# branches while keeping the local changes in the working tree that do
-# not interfere with the difference between the branches.
-
-# The below is a more-or-less exact translation to shell of the C code
-# for the default behaviour for git's push-to-checkout hook defined in
-# the push_to_deploy() function in builtin/receive-pack.c.
-#
-# Note that the hook will be executed from the repository directory,
-# not from the working tree, so if you want to perform operations on
-# the working tree, you will have to adapt your code accordingly, e.g.
-# by adding "cd .." or using relative paths.
-
-if ! git update-index -q --ignore-submodules --refresh
-then
-	die "Up-to-date check failed"
-fi
-
-if ! git diff-files --quiet --ignore-submodules --
-then
-	die "Working directory has unstaged changes"
-fi
-
-# This is a rough translation of:
-#
-#   head_has_history() ? "HEAD" : EMPTY_TREE_SHA1_HEX
-if git cat-file -e HEAD 2>/dev/null
-then
-	head=HEAD
-else
-	head=$(git hash-object -t tree --stdin </dev/null)
-fi
-
-if ! git diff-index --quiet --cached --ignore-submodules $head --
-then
-	die "Working directory has staged changes"
-fi
-
-if ! git read-tree -u -m "$commit"
-then
-	die "Could not update working tree to new HEAD"
-fi
-
-
-
-=== FILE: .git/hooks/fsmonitor-watchman.sample ===
-#!/usr/bin/perl
-
-use strict;
-use warnings;
-use IPC::Open2;
-
-# An example hook script to integrate Watchman
-# (https://facebook.github.io/watchman/) with git to speed up detecting
-# new and modified files.
-#
-# The hook is passed a version (currently 2) and last update token
-# formatted as a string and outputs to stdout a new update token and
-# all files that have been modified since the update token. Paths must
-# be relative to the root of the working tree and separated by a single NUL.
-#
-# To enable this hook, rename this file to "query-watchman" and set
-# 'git config core.fsmonitor .git/hooks/query-watchman'
-#
-my ($version, $last_update_token) = @ARGV;
-
-# Uncomment for debugging
-# print STDERR "$0 $version $last_update_token\n";
-
-# Check the hook interface version
-if ($version ne 2) {
-	die "Unsupported query-fsmonitor hook version '$version'.\n" .
-	    "Falling back to scanning...\n";
-}
-
-my $git_work_tree = get_working_dir();
-
-my $retry = 1;
-
-my $json_pkg;
-eval {
-	require JSON::XS;
-	$json_pkg = "JSON::XS";
-	1;
-} or do {
-	require JSON::PP;
-	$json_pkg = "JSON::PP";
-};
-
-launch_watchman();
-
-sub launch_watchman {
-	my $o = watchman_query();
-	if (is_work_tree_watched($o)) {
-		output_result($o->{clock}, @{$o->{files}});
-	}
-}
-
-sub output_result {
-	my ($clockid, @files) = @_;
-
-	# Uncomment for debugging watchman output
-	# open (my $fh, ">", ".git/watchman-output.out");
-	# binmode $fh, ":utf8";
-	# print $fh "$clockid\n@files\n";
-	# close $fh;
-
-	binmode STDOUT, ":utf8";
-	print $clockid;
-	print "\0";
-	local $, = "\0";
-	print @files;
-}
-
-sub watchman_clock {
-	my $response = qx/watchman clock "$git_work_tree"/;
-	die "Failed to get clock id on '$git_work_tree'.\n" .
-		"Falling back to scanning...\n" if $? != 0;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub watchman_query {
-	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
-	or die "open2() failed: $!\n" .
-	"Falling back to scanning...\n";
-
-	# In the query expression below we're asking for names of files that
-	# changed since $last_update_token but not from the .git folder.
-	#
-	# To accomplish this, we're using the "since" generator to use the
-	# recency index to select candidate nodes and "fields" to limit the
-	# output to file names only. Then we're using the "expression" term to
-	# further constrain the results.
-	my $last_update_line = "";
-	if (substr($last_update_token, 0, 1) eq "c") {
-		$last_update_token = "\"$last_update_token\"";
-		$last_update_line = qq[\n"since": $last_update_token,];
-	}
-	my $query = <<"	END";
-		["query", "$git_work_tree", {$last_update_line
-			"fields": ["name"],
-			"expression": ["not", ["dirname", ".git"]]
-		}]
-	END
-
-	# Uncomment for debugging the watchman query
-	# open (my $fh, ">", ".git/watchman-query.json");
-	# print $fh $query;
-	# close $fh;
-
-	print CHLD_IN $query;
-	close CHLD_IN;
-	my $response = do {local $/; <CHLD_OUT>};
-
-	# Uncomment for debugging the watch response
-	# open ($fh, ">", ".git/watchman-response.json");
-	# print $fh $response;
-	# close $fh;
-
-	die "Watchman: command returned no output.\n" .
-	"Falling back to scanning...\n" if $response eq "";
-	die "Watchman: command returned invalid output: $response\n" .
-	"Falling back to scanning...\n" unless $response =~ /^\{/;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub is_work_tree_watched {
-	my ($output) = @_;
-	my $error = $output->{error};
-	if ($retry > 0 and $error and $error =~ m/unable to resolve root .* directory (.*) is not watched/) {
-		$retry--;
-		my $response = qx/watchman watch "$git_work_tree"/;
-		die "Failed to make watchman watch '$git_work_tree'.\n" .
-		    "Falling back to scanning...\n" if $? != 0;
-		$output = $json_pkg->new->utf8->decode($response);
-		$error = $output->{error};
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		# Uncomment for debugging watchman output
-		# open (my $fh, ">", ".git/watchman-output.out");
-		# close $fh;
-
-		# Watchman will always return all files on the first query so
-		# return the fast "everything is dirty" flag to git and do the
-		# Watchman query just to get it over with now so we won't pay
-		# the cost in git to look up each individual file.
-		my $o = watchman_clock();
-		$error = $output->{error};
-
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		output_result($o->{clock}, ("/"));
-		$last_update_token = $o->{clock};
-
-		eval { launch_watchman() };
-		return 0;
-	}
-
-	die "Watchman: $error.\n" .
-	"Falling back to scanning...\n" if $error;
-
-	return 1;
-}
-
-sub get_working_dir {
-	my $working_dir;
-	if ($^O =~ 'msys' || $^O =~ 'cygwin') {
-		$working_dir = Win32::GetCwd();
-		$working_dir =~ tr/\\/\//;
-	} else {
-		require Cwd;
-		$working_dir = Cwd::cwd();
-	}
-
-	return $working_dir;
-}
-
-
-
-=== FILE: .git/hooks/pre-merge-commit.sample ===
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git merge" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message to
-# stderr if it wants to stop the merge commit.
-#
-# To enable this hook, rename this file to "pre-merge-commit".
-
-. git-sh-setup
-test -x "$GIT_DIR/hooks/pre-commit" &&
-        exec "$GIT_DIR/hooks/pre-commit"
-:
-
-
-
-=== FILE: .git/refs/remotes/origin/HEAD ===
-ref: refs/remotes/origin/main
-
-
-
-=== FILE: .git/refs/heads/main ===
-2a765535b8506eb131ad05ee7fc33fe180da170e
-
-
-
-=== FILE: .git/objects/pack/pack-b36b7f06281af2231a1613c8fb3eab069081bfab.pack ===
-PACK      
-™Nxœ}SÙ²¢H}ç+êİ;·Y"z&YDqÁß
-(ŠÂb‘*DıúñŞÇÉ§ŒsòdFFæá=B@Fº®‰†(+(- ”ª¦ACÒ§išåÊT³Pu¡ƒ=j8‹\U&C¨ª,¦f’VH:REAH•R=Ï5(À—mÔ~š¢©›²,MÂ½¶wç×ÀPÏ>›¶G}~bÂË!ıÌÚú é¦2UD]1ÀDTDQx£5áõ`N¸?¤àç²_ÿ+Ãfƒ¿¾bæÎÎCpXÌ7Ö1Ú»ß¸ 02/›YÖÌ¶¬İl·¼MƒÅÁŞÛÜéÃ E%µ,ëZ®w–/*]†±ø¸[?Ÿ½h ºy
- ²Âåh™Ñß®§˜M…ÏòŒRwêU¥{¯ò0P¥çÑú§^£³GŸ+Cz2ÕÀUµ»B”‘|àûğ®Áüãbá¼ÂtBÓèÂ2Ì¤^ÃmXõQ»“Y…O×¬3Wq²€Õu±xâµv;Õò1;AÆ9kôÜ[¼ì¯X\¼Ø¸¶UÚÕÅ
-4Ë|¿iT	@”
-º‘41˜ÌsÈÌ¦gòHÄåáu»…­äT+¡F,Yœ“–¶Y4YÔ_Ï›&Â†| mÿáô6+·Ê‹Aè«ófõ“´”°u|D¸Á»d¯ói¥¤°ÔTµ:âŒ¸~-ˆvğ`¥¸µWdç•¨­{fûåÃ³ãÈB+)Hª#/ŸŞŒ†W”–”_©zº«mã¨0|1÷>Ã€88Ìİ ¾=f”&¯i®óa>9ìáæ^m‘eƒlµ¡Â|å’ÃòÒè©oí©OCãÖD çÄ“Uzó{vQ2KeÖ.ÅËä\/Ìs7,–:aÕõ¸âdU51qa~Wcj¾oQâéÔÉÏ6‰`ÆOÃ*ŸT¯}íQc÷Ò®ğ¼ò$“ùGõJ=ÇJ†õî¢º™«¸“ä¾?ÊÛ‰İ*wQ÷H«—vOp»˜ÖöuËÃ+¹×[ƒvd[Å°›£a°¹¬+”4«ëğŞ"?Úú\nÍ ÏùÔê7&€¿EU£ÂoO¸çÏöèşö)Ø»–³vAñö±=¤8=IƒÁ±‡¤A½ D]9Ê/èú¶B¬€M`¿©qHèwÂ²tœ´ûæIÃx?d¿¯_]ş4À®£$ƒ_•oYF‡ü‹.äCØÄèã»ëR’—‚ñdìó_Ù•–ëAxœ}SÉ®«V Ûógzs ŒÒ{Õc&$@;æyaşúŞ¾vYÕK–-ËOcš‚$¡q˜0YÈ¦4ÎáùLÂøŒÅI‡“oÊ2‘!Ón£0"Ìh<&bx¦¢ˆÁÈow’“b8Eá„Á á<ıÄ´+?àYšÅq½–Ÿ´©ûEü5ÒñóÕõc:4ûW^NÅ}Å}û'ÀhöLá,ƒQ …g‘oµ-§)RNêÿÆ~ıo,òO™ƒ?ş/)Ü•;°/ŠÁ9îCú­# ëGyã³xK{SI-zI·h8+mhq‚©¬ıMàd_;"·2fû¦NÚ[Ğ})sÔâŞzé™4T¬¡«çÎ¯æ‰	†{ém?yñÚo5ŠÁÃ¹)„Kñ¤‚€Ìv\´±ÖşrÊN9Â­Ä6Â¼u(1nã\@ÛUã\7Æ=ßÔª‡u¾”‘Lôä}DÓ-Ñ”í-]•ç£7#lO#ãn»¨l4»=NçCô½¾S¯RíúÈ‘=%¼!ÀB¿ë|9¹;§\02éEİyª²P¬C·FSôW•lG¹I©íä¤ùe}qäÂ©0t!®mpMĞwV>PšÎE}9gŒ´¹meó¬¯ŒÍ#Û±ÂòyT?yäVf» @l¦{aÏê‹÷ÌT«ö¨g;I¬]D«dgş½ «*QÖ³æùòz,&uq°Wuï*`d´œnçÏ³/>'êÈÉLœT[—Õm—=Ş½ìEõÑ·uXÉ—¿İÑ½İ9¤t™Õü·Ï!àñŠS¾‹ÇEŸ*e”èÃ4fï÷ZÂï8±{tf/!xf0Õf´I4†í„@âG#FÀ“÷puYÂœ‰ù¥A©ë€±>Ù|ºà*ŠË	=•>a×0×x‹êÃÍtz’ÆŠ­wÏ(.CÖiÒX»Yw=z2WíùŒ±³$SØ½ÊCôÅo©|G½SÄDß“‡WSÖW¸¨DÊ#À9V)şhEåÃgÚ%Âp;
-ü\6'Aşù„dˆÿıdŠÎJë™?xœ}“ÉÎ£F „ï<EßQ~ Y[šDÃnc›Õğ¥YÆÆlÆO?29F©KI%Õ¥TßôÂ I`!'q¬TH@ßÆ¦¼@s)S¤)Ã2¼ÄC1‘ÎSıx÷Í~ ‰B†<4#îÚÇ¢ıœGü¿úÇ?»í«j¦zÎ¾òÇı/Àˆˆ Y	4KÓÄwzo¦	¿€ÙL»9?ş­ıüßZõ¬Æ¦ü-E7÷6pM{Ó–Ï¡¯ÿ“€ ëhäŠ,+ª,{Šg‚Åª¯2©'Î3Ö,ËÎ=Y¾…£#”™2æ«¸á^«8’È¯[4òbp^dn—XÈòeº?“vŠ>ìĞ¦z¼îA®U|>§“–{Ç®1h… B®‹®˜&'Ç}w	Èv.æ÷î±Ëœ16ÜÕy:Ë½f¬Bƒî?#_Õo'Q/u•%×ÅK¾­!c¿ƒø0c$6ÓY½(øÕ.)ÇÜâ©Ö:^¯®¢söò˜¶A&³BÁZD;ˆN*L,yƒğÍ9Wˆ)qsÚxş-elY™7‰2•ºà9C£7$e‘ºú™^Ëge×‰ {çã–ıGU¶ìi¦èŠ"Vã¹Ä%¢ºïohV”(eQønú°&Ú÷Äá\¦å!&€ÃÏŞ½J¿eN¡!ÉİÍlwqd¬»h¾î+e”ù
-ÛCRß4ö49QÅ{}lÖdÏö“ ô¦ĞIOóyàÛj‘k°ÙÛ^3’Ñk´†ñ
-üÓlÃÀzŞ6[7âH&ÅÆ´§!–ÊÍ,57ˆ0a<_·–‡äu±ã²÷ı…2÷­_\ê‡ƒ¦Ípò\š Ìv¯ïqù1"ud)»HKÌ«ÎOL‰Çj3ƒvÅ±˜¡×’õ¨†È"Ÿ,ÒH™ 0ßÏìdtM$ìL^ÔÑ	sè8@)¾—nrÔFKæn»µ×ÜsvÑ×bL¼g¢ÑİnÑ¿w°÷'§JdSĞÙ³ñ‘ ú¡X¿™Ğmí¿‰ ö}35i~ƒ÷ùï<+­xœ340031Qğñtvõveg³¾´ÉúkŞ<£¨³rÓö­ÊÚjÕlQäêèâëª—›Â°/Á]ããÃ~+®=;sá Ş™cM[¡Š2óRR+ô2JrnYË]jTäb|îtfv™W“ì÷S™œ,.¶Bxœ]RKÚ0¾ûWŒ8íJÑ¶ÚC½™Ä,V“8rÌR!1ÄUˆQlŠößw&°»m%¤Èóø^C!ä®µc°Œ¥şü6¹cá¡}„ç¯Ïß ³£ŒUv:¹œÁèíd÷opœš1Ú.Ãd-ø´}3mÑC3¾ÁÙNü>6ntãh‘ádì&øC¼6“Åáš|ëÄƒÎ·—“c‰ïàà!öõ}cñ8“t¶˜zï-¸ºØûK„É†8¹–0pc;\:ÒğŞÜÉİh}¶‚^: 	œ|çôµ³­óe?¸Ğ'Ğ9‚Ş_"çüòñÅOì00Dp¨{öú©n!ég
-4Ş#
-T¹öşô¯şp™0ÿŞÎ;ÇÈfÆ_¶T¡ñƒ%k­;GÂwÆ¶š½ÿmg/·«>¢Ô›:Àùóª÷Vè›a€½½†¼oó—‰èCÄÃ»f€³Ÿf¾ÿm>!ÿZ@­VfËµ YC¥Õ«ÌD^ã{‘ÀVšµÚÀ	ÍK³µ^îà‡,³ÄÏJ‹º¥™,ª\
-¬É2Í7™,_`‰{¥Â¿®,¤AP£€ïPRÔV®ñÉ—2—f—°•4%a®”×F¦›œk¨6ºRµ@úaKY®4²ˆB”æ	Y±âP¯yãT¯I¤ªÚiù²6°Vy&°¸¨Œ/sq£BSiÎe‘@Æş"æ-…(šÑØMl×‚JÄÇñ—©J²‘ªÒh|&èR›Õ­¬E\ËšYiU$ŒâÄ5ƒà^)n(5üs¡÷¦€	#VMËdñ}ø‰ıº§QÙ³›
-xœ\ms[E–ş®_Ñ;©©HF–Ç¬Ù¢Ôd–y!°µ•«Xr¢ÁH.IqâÅTÅ6Iœ	Ä„0@e€˜>PS%Ë–­È²\åı¾HÁ¿dÏyÎé¾}¥+g ‰uÕ·ûôéóúœÓ>b^½v9oN•³×Å+æ\9[(æË‰D÷ón£»>Úİëİì6»;İNw‹ìÒÏÓİìîôÖLo™¾Ã3ú·Ó­w[İ¦énĞàZw›´»ú¢fºuÓİãŸ{Küo·Õ[¦iêİFÆt¿§——z+ôí2OÜ¢×ÍşÏ4iÍMµ¿cn~a@J§»ÁsÒÜmQã4ªI2‘¡56ºÓ["»Ş!lÛQ»fç
-iÙ¥OOyÅ†¾Œ}Ókô_§w[÷^§Õx—Ş"ê—{Ÿğ;¦»NÃ¶Aß¶î~·w¯Û6ŞŒ-&>“H9bºOh­MÛÂNˆ·‰Ä¨ùÏîƒŞ=Ì{“Ş~jøÇn>,ÿWòHwİÿn4ü.…7bÊø€à]ïôîğÓQÿ©Œ~DZ ]¦$zš²/Çô¶F‡ŒÊ™çkÚç2NøcZâio‰ßlö?”±ßÓ‡-ú²İ»gÀªušz¹wé¼~7ê'o~ã1‘N¥®'¿Iû¿ÍgÅ‹úŒn‘™>ëÖ…#{8^å¦yı­<C-æ»Ñ™Ò¼İ)3‘&í}‚³}je6I»lÒ;eÒş2%|è{EY7û†ĞGL»Å|	í­03@\Ü–;5<nã_š0dà±ŒÿN5‰âU~£÷ED^jÌOR¡e§ù5§İM’W62™ŠÏ7”É£öT"!š1L‰«Õê\ejlìıB%?û~i>—¹R¨^½v9S(±%UK6ª–lL&Ô2q™ût*Û–"ş–öÁòc­’ÑjÆxÚ:iÃ&ªÁaÕdÊoAŒj##&I?±öŞQÉÁ<¤Vü8ª„ÎLae6t°‡ë¼ÍLV*•6üdÀ$N±áÑºn34V­=†m¦ŒÄn…ô™hëİ"ô°9ëİ|‘'ÜÓSãİ¯1[hù(kíí¬$­”òjRë|”¬ÆÄ¨$Ûeh'³æ!5t~ğœŞå€ävÄ¨êš»*Ş}ô(Ûêæø©aób«LN¦‚E«nıÆ:0p½)[qGàmäš;ô?¤½wßÍ(cn©÷Ö:Ï¸KóoA"ñ'•agLÀ’8òÁ%|âqtV^wYğFFÒê‰ÈçCÂòª–UM1FúzÈnm‡œòcúú>yO|ÑZá¢T,šr	+·ä-U]p„øI»âE—øtÖùøW5d+½»Dâ-]SY3^ã‡-}@3J  á¶Æ‡µ¦Â&>_·¸k¥!cmÊ3œqù'¬zİé}Êì`‚ÒÆß ‚Öt
-ÈÛfÔr„q‘¢Ø0ÖÚ‹»jÚ3X|Gx
-¶_ÕõX[ÍÖ—Ö!iAÄpÄ£yŸXcˆµ;(˜O¢6ñ¨Ş'ğeNtÍ=£•D"ÕXÊÙDÑz*­½6ÂL4!Èô%>ËW:.E$ıC¬«İÜ&¸ïÓåÔ(ûÄÏ6”äîŞZÏÖÇl–z 6»·Ê›ÛU¶oó1Ó¼1â-nã»" :EKnDÿ÷«Ibà×¼áPe,Å05MÖSù,_¯"Æ¹7H³*eÃª¹3b‘å8bœˆ«ËLŒ¦‰‰jÃª¯ñì¤e¬±”‡³ê4¬#‘ºËáSÄyQ–ˆ)iòÛŒœ»‚;¼‘Çê¿G3‚ 1m]ˆ}ë!æ#"V ër|)ïÁN“ÈÑnco>Çk‡¥5ÊH5ÌLp³ùëKÌxŸÄw›*Ç™ÅƒÚ0(ƒºEÖ›cÖÚi¨ÒÅ««³Jb ruÂhQsöne–2ôÏQÕ"^~Ë«Ù´­	“
-WÔ‚ëƒ4a–>1A€Ò‚èµCWä|„çÙÔŸ¼d&çn¤²£Á#§‹õØ#UÈ;C- ¸ímëXå`7Ä·°C‰8OÚŠ•ŞnÅŠ/Ù‚¼Æ’ÀR¯C$q[÷lEÛSú øT,_ÔD­ÇXÔtØàš>¨N:Œ	Dğ (ÜDL¢ò4lóğßÎçZV9ŠH1×ÎùYÃlˆ½»4É23a;`]e+ã¯Îíê½•qp™åq¢Ğ§İÌUŠTjìAÖÔ|óÂá•›Fê¢¤ò‰Ä¢ûÂĞ_©-³xÅbbqq‘Ç<Ò1àCfK<O-¼ÿ®_”ùµÜ1,;:gÓ$ƒRñÊ9uÛ	õÕW­XÓ”’eú,â%¼ôt@ˆcL‰Êí!¢Še¾$™ÚáøÆ.b5‰¨G`%oùÉšîpWDkÄ/ß–æOuïbÇÖ)µ"+Vr‘ÌPœ­¬	¿4˜@T<şÊDÉ~@²>ˆøÈ&¥FŞ»_!Ë«…:¨iZØŸm‰¨é=ÎµXlMˆc ![4!èÁœùÉÚŒ¦Æ<V>ƒƒÕ[(mq°Ëó§ø›‰oÈXÄ– œŠ àä\kY·}lb§äƒ§„ :†³{ç ûçrÒñ‰J:F2ÓÃ³Ÿô -tjtÀd4`†ÄFNlÁùªğ5áUPª^Rd82¢ÂñXrIL|²Ê.iß$_ğ[zgË˜2d{|şú„û…÷S#]U„F³_ ÿÒ‘@POCŸÈ˜¬ƒM°ˆ˜1#€äØ3`ÎŠ`¦"ş»pÙLXğo"V6ÿc(“˜ ?„"İÁàÊRµ÷¿‚?!A±ÉwS²³4Ûm[÷Eî&916™ÚßIip4t`Ë&ïŒu?<fëXğ­8Sñc{êJéUÖdX0vnDüÑvğ
-DcÇÁYŠÉv$ûÇPÀÁñ¯H°ÏøMÒBİãJ ,Æå!¬Õ DÌ_£ÛN‰Ò?´t°?áüÓHÓ÷H;b±xü6l1"IëåÈœTINï¹ƒçúÎúVâ8SİÍßåT)rdµgG{3DfRf›¾~Ä~‰¿–ó»q˜¤£R¸e3ánSW}â„·ÜŞÂx)#ÄD·["ªšŞ’gò‡Ç ò~½<	§4áüı¨­mœ‹jXÉ“™’â J)ğ2†ç*R@ü
-DŒ^ÛÃºí_-²Ãä!.¼¡ïÙŒƒ’=/tñgßcÓ'—‡(R“LŞÓ^ÚB«[ü†}ß†Ê	¡Ïbæ½ËÉÅ¡áB:NE‚IQ¾Ócó²»Ğ‡!”_ŠÄƒJ4DÇY ×P¼ñ"XDœ± $X¿ëmƒb]œ§!{ÄÇÙÓ…ØÂ?‹„ğäw­H!IPÆêúZß/°ù>3•qÙbS©·ß`Õ ·B’a‚J5[Ígæùë	m?[cÇüèA²ğhİM*]®•AuÀáMEÓ”yM¶ÁLEİ\/•gs£8O¶Nê[!d·ú°Æ†ÆÚJã[Ñ¸PcH#ÚQI¾nŠ¦Ş‚-kô¬b”€¶ô–‚¶jl´”(;h1¸zi&@öíægcJêÖü+ävÊŸ»aÃyüåã¸]ÿ=ƒØÊ *5¿ƒ²İbÍ\€oşÎÆÄ·±Í§]?Œ:Ú%'¬RÃTá°òÁ¢ÿ½Ñ™¿wòÁŸÿGæí[,¢ìÃ*Ï(2p!ÌZD¤ëlôVi³xq˜<¾_³¤!Êx¦QÈ{²8’õSµ>,Ç+ªì*rÈ6ã(¼òpŞùíÏÕlE“×Ÿû;¦=ÆÉíAc ¥J;rÑKV!ÅüvºëSıÕÃŠ'ÃNJ¡A†Å<ˆ» ŸAD¸iÈÇe(}¸¼ß]1á ‚Í›öh­æO‘?¾y˜(H}şTöîßÀæ?6à…GßÓ[^?\óU šÉ®6:û"ƒÅ—Hq¡9eNüŞÁ}~„¹kÏ4iw8d¯ï<Ÿ¦Í‰}j6@ŒpVkXáY×#9!çØf¯M1¦+Z¼sÃ‚˜r’«˜‰½ñ1Ò=1f0„Ëê lÂéùœY]J“À©–)*	‚ ‘¼qés°ú¹™¾x‘>¿í>¿Ì?åöë™ ŠÕ0½‘64LÌİ +a['QiLßPyÛ…Ì½OåTù]‘Ó#ò]atUb6$K­5–|Š>xc÷y^İIä>J&§o`DfÊßM*1Sš§1ûÛÙòt5[L&ß›HQüšKé`f7‡Ğ‚‚-E©ì”üú4ê‰[ûXl“]A,Ø/Úğ·ƒÔ˜×«§í|2N¼–&9£¬Aº*á¡¶Ø&À!ª¨<ô6¡)Nı‘|t´²²f!ÁÁlN,4ØCèÌ¬ê¤ÏP¶isáL…Oánï º$É¾rô<9ÎÌ}«¢éÒ¡«õEM‡®"$´Õ{®)LûÓI¦‹Œ“±„ÑÃ–³¼Ê?8”ˆ%Âs™OíÖ%ÑkH¥‰Ÿ‰A6Ä¦ïÆÓ÷µRºô‚ºEUg-öÈ›é¢$ïãõbĞªÎ +mƒÈ?[ûFu¢÷›ªßIÕ4ßŠš_VÓ¦?{'Ûµ kˆ#=h¸!³·ú+·^•¢)úöm_—àŒõêàĞm)ôÚPâ…nC5%4şe“…Yó ¬[ d
-ò¼©EÇOÅä è"ˆĞ½!‡=¼& b´äÅƒå›´è…K—KÕÌµ³ñwå‹é<“ïø‹÷ä‹Qt<£e‹HçÀÉHå'ô|Œ:ùø{P¡i(ìf—…IiŸ¶JPï=@´¹Z9Òúe5“˜ÌXÜ„2iÄ.‘n+M}é=„ıäéxbçs&·¿}qì=ŞÃ‚<”½Ñãwé1g°Ñ
-0¦[í·Ó@<Õ©‰bÂ†"Éˆ–LŒ^IU™Ğz´1…gåSq±›Ç1Ğ%¡ç2D:9 ƒHÑ‹±­hüıÔÛmİ•¨
-…œˆ[ŒÂğ'®}Î¢;0[MñÎçO›ä©·ŞL™ƒ/nöÿ÷eËœ.VóåìtµP*šä\©ÀM~>_¬V†½‚Ì™6Ö]ê^R	óÿ|±üÛßı²ıŒwßÌV¯šéR9o¾úØß‰n£soç‹¹|™xœÎç³P¸}ş´…CßÜTÑ·ŞO¢h?Işa¾¦if$S,bDR[>ß(e”dkÂdx'¦ôzn§J×‹¤o–æóôÏù9úëÕlq:?ß¨ÙÎbY4 .ÌÈP?u’ĞùER%‡wa£'²]Ø}ÿÅ”{–±lÓ²¯& ¿~j´n Eú&Œ¸²kìûŠ tJ7[!ËPÉ_ù€å4P#Õım6ô¼´;yÛãqGÖÄìc9.ÉiÖéÒs×ªùÙb¡rµP¼r«°ÙqßÌrYæ:?¼’¯¾^š?]œ)ñ§\9{ıt.Ÿå¶Mfö·!º†…!²¬€Â©àzÒGO
-L÷'(~Í?Çt´Õ†W$8-&p·w<B±Ğ“&vÃã³Ñî@£0$ª$ÆÆ¼šqâCSÈM™£sÇRR’6ió~¡ÈOfÊùüQŠŒB(+yˆ*HQù¨ù(¹¾w½^’c¶
-Ï–=K›Ëô=Ï—«…éìì”¹\*Íò“ri6Ï#«Ùr³V
-9YÏÅ‡jiîhâ#Ñ^YDßBîKkRÜ)Ï9Ù$6”+PN¹5ÖğjB°âµ>!|äÎÑ ¤;ÌªÁu_{K$L¼À¢Ëh+£P™ÛİéwšÑ[¡¯i¿¹ÀµP çFOÚ—tø8W,wÈ&ºBw¤rÄND˜<Rğd"ÕõCJÂ¬ˆ,µµ± –À‘‰×Ñj!J—z7ü}°´Ö6¹§(µ¸ßÜoûbÈ´ZôI÷CÛ «Ÿö:t´C‚‡®¸2ŠZ®*9ƒqfln`‘ÍÃÑ×q¼!i3fº>¾ÃØ1&±~Ò7ùa!à·c‘ i68.à¤
-Óœ&Í,Ê<ÓÕAü‹‹‘¬Ÿ9ëãî2Ó2ü2£/zÂfüFBG‰åBLSZƒÆ3b&T2#mïØD¦ZÎ+³4}’‰`Îàß6”¾cc·8v”ÄÎ¡¦Ù=90«€KçJ`z Òüuw{lÒ%eûÈ€hÓWòÚeUpUıàr¶’' ·ŸşH–kÿgdmE!¶œ×lìïXÀÛ¦THèˆqšq ¬¬tR\hÄ«Ñu"(H+¬ikÅßïÆú|x©é\k
-+ª®M{”h÷~*ùUK´Ê/vå’Ø„CK4ü!íA9Xé|Øõ„Ø*o\Í2Şîˆ?^Š"/½5ë3&ù/°é©HèY%‡E	Kè–^Läg+yÃãaO_2“©èPiü‘ÎÖ¾d&Rƒ“¾–»’÷‡³!–‘‘‰Ùê¨˜?‘QÆ°ovĞygÁè¾ÕŠiËUp\ê²aQ”uQ‡Œ9_Ì•)ó‡Ú6!Ä²¸ëñÍRƒÆ‘’–.§ÏÙïªWd">ÆÉbí1Šäs%”¥^²ªÕ¨h}–ŒXàÌR“¦µ1å”î¿Ÿ}ë?2•j™BÂÂÌBòC±»•)ã›´´‹EísûÙ|äˆãÜ>SC«Mİ$yFsùÚÌL¾ŒX9¨dçóv'"ˆu1Ğ»Úúı`÷àì§úxSzÈL6µ—ü;úÔëîWcû”'’à’íœ)ÍÃ×³iO{¹©^]Ğ~Q†A£X½Áeå6˜~“«7aQfÿçèZaGäãP•
-Í®ôÀÆéë"‡Úèõf~˜Ã:½cÆzu»Úö³è:´_=911w½nrq%Ü… a©¨Ñ??C‚¡g$ÑôŒ¶®Úrô7ÂU%Ø’VÑ˜~pÆóğ.é¤´I÷-’è~&Mea%ÖÒzj-¶í	î†yS1­ê6‘QoáUÅÙÃğåŞ'äûÙH’ı‰Vk÷
-Ş	ã2 ®¤]ş¨B}—ÁÚ®mÕËIÒ%'-šµ1ÔUĞ	¤’éd]áÜÉ.M$¦è#®÷„L.œÉ,4'é4øDşú!ÁØD*‘3ôzÓI…±GÒVşNLµGaò˜¼˜6ï¦Í{)±k‰|-®ÉdàK\˜m’Ç½#ÀÇ!Y44U<ƒo»'Æ&ÂfÁ¾{$^»D#‘K%öQ×50i7¬Û–J»'ÇÆ-gÇÇ&-ÒÌ-à®*ºo#d¬à²Ãó\Ö•BéZ¤º–Ô‰«©yìHW•§lìÁ·#Ñ¸ÕÖñÎ…[;úKJ“KÕKJ1+şWÙ«¢TÙ†ÌtáŒ”ŞC°¹Éq¤ôõ]ÆHæ
-å³@Î^6“c“
-ÁÇ%sŠ]¢ù‚1/§`A°æ‘‘ãcÇÂ²uiR)Õe˜f±
-^Ø6Å¤¢z€›6¬Qø)‘÷6ÿmÌßpjmTãîE2?„ùqMÉ ?W¹4W¦ô:5;ˆ\‰wõeŸÂNM½¶¨°:0ŒÉº6ëÚëKÔt¼);]½Fá”^}AüX÷“—._vŸõp(YxBH3åoÌå§«y®×#ÍO2ŒÏe
-Æò§K•ä/«Ñ óèn”ğ„eèYtÔ1á‹L˜·{,-f3İç¤Ä&Co¾Ø6<ïşÚ¯¸A^ıKs­±Œ6@÷WõÃ;³’>~VY “HL¶xe6¤ôİæÚ/«—Ş şÓ?R#ÿ×ñıÚ"†Yæ`ÄĞªRŞvüÎ-;%ºŸ‡…Ñ0v5
-“ïƒ»«ã¡é¹¸,G)Ãs4öÆ½^ÚúN]WØjĞõ.>ø¿¯Î‰›ñD¿%%°¿EÂı†
-¿XëükÄEºŠ4ŸóÁ5,åîv;SêŸ"-|GÁÏ	
-~b;ıú\¯"N…uÚbÍKÏ+üˆvhI\oÛÉz‘.Iù×c¯ÑÈŠby“bœú.nGZzÙô/ù%Ï¨§M¡Aë™–ø7˜w©¬PÆ<0Ò•!ımÑßT2$]Iaœ«Œq$äg+w—P[»42›4½>û®÷`\İ '½¹^‘Öfş­kø®\±ik]ÄïN¶¡LßE3qv†LQŠaÃ—TjäÆª·wñmş¥ğò7Z8d[»Ö›nTO[¸†´‚šàÚ\.‹‚È™l1?ëRåréúDòhïâÑ´™›®&ç3l¯–Ê…ÿ.IÊÅ÷£ÏÒf<3~‚¾)L—b¿I½ÈEƒßöçàöokÃ{ï _¹>„Ö‹VoĞİ%­–*à5ôUËmÎ^xåÖt©X©š7_¹xéìéS¯qŒ•Æ§soá^)ùpáµ·Ï~õ•7Îò£¡eç½Ø–S‘^L™çÇÓ¾s¯\‘È^«–^çï«åkù´üõÏ½ù†y©P¤¨ŞÌgg¯å_şİóã¿ûƒGÉc'Jû„­1hÖşhš—¯?™B&ênf‰MpädvfæòÉa}<ÑŒÇçNæNÎÌğxw;5$Ö œßâ5^ÈÊ]¾{©¸ÜßÉçu¥ÈíP?´‘‡^-_¹œMNŒs$ı5qâËùÉ©`H›LŞÙìëògßÊ½½Š¢£‡]Àô÷°¨'ú£EÄéŒªÙ¹QúßƒÄ(°~~Îi?ƒWò•êµr‘vŠ*¹¨7SàLğT9;SMf2ÒáPúûÂÖœ{ŸL	,É£§Q­–ÑŠ™{A^~cnæß4‘ŞÔ«d¿\â±BSÉ¶Ä‡M¡¨_¹‚ˆ*jSÏã°Êf‡VŠÑpîÄÛ M"L”¹T|AA\ÎÓ1=€qªrTq?À||îx<Eùb…Îã´W‡Õº¶½'âıòŠÈo;ä‚ÎdFúŞı¶ÉA8Ö^ª°İ6İØ§èÇJXÔ¯	”³‰‹nÑßhæ—UØm38[àXzt¦@uvn.ÃÁÃ†‹¥\şÒ¥ÜµÙ<—ïCN°i)d<BæŠàÚ©+™Ex¦ao­Lèı€7¥›m_Äc @~µ¿‘ê=oJEâÏº/)m=H)üEt’UÃZ"ÎAï]/ò›‘8¢A^İı‹¶°aÑ6 ĞñWÄ÷ˆ’–|ô[+mSÓš²å©+yòï|áSFÕ<,½ù=1
-¼rØ¤  º‡kÍ02½¬õŸhJ&q"ÆÌEàa¨íû¿%>iIˆ”6X¬şº0M6GTŒ=Ÿ‘q¿¯ÿ‚”©W¯¢7¬¥ Òawg2‰°JBi”êˆJÔäåó§Áş$Ì•_ÔV¿µ˜¤0q’—|…" DÒ\àewâ ¡;¢òöæÓ®ŞFq9ãSÄ£Ø»ßÚ:,2É$şİTUÿ¾éxœÍ}k“Ç‘àwşŠæHk " Ã™áh^¾drƒ'†4)ƒA5º3½Ä ±İÌ@ã‰ ¤“ì;+,[¶Ï¯÷lïÅ}º¸Jmêa)Âû}cæ/è—\fÖ»ºÀôÅÊ–]¬¬¬Ì¬Ì¬êìµÓWn^¾ıÖæUo'ßímœZÃ?^Ïïo¯Ï¥Ã9,ˆüşìF¹ï;~šEùúÜ0ï6–çDqßßÖçFq´7HÒ|Î’~õ¡Ù^æ;ëa4Šƒ¨Au/îÇyì÷Yà÷¢õvİÛõ÷ãİá®*fQJO~
-úIİ İ8_’Q”âØyœ÷¢ËÃNä]Iı½¸¿íİNı¸¥kgYİ©µ,ã_Ï{Å;€‘Òí¸¿âµV½†Ğ~w’ıF¿C$at(Z¿S?Œ‡¶0øÃ/êEA¾âõ“~´ê5ö¢ÎÃ8oL¨Ê“a°Ó€Yõ’¡¬<Hñ:E"ÒŠ×nµşaÕÛ‰âí\<á´»½doÅÛ‰Ã0ê‚~ğp;M†ıpÅ{©íÃÿº$Ö…uhtıİ¸7^ñş`Ğ‹Ù8Ë£İºw©÷¾î·èù5hY÷*·¢í$ò~p½R÷¶’N’é3¿ŸÁŒÒ¸+¦ÿI/IaÌ(‚9°‰ùA'}}^/~äg€Ggƒ8tzIğˆŸd1kİ÷£px¸ŠÖ¢Î¨¹›„Qcà÷5ĞÁ0Í•íÔï8Z6áß>2†»Gªì^QçæAšdÙ§Øg£´ ªf”'èã÷‚êò`ß;ãEıQ5ó»QÃO#¿AóÔj«^/êÂÜ¡#°à€¥(Aáh6 pÀ£¯áµZƒıë"8£$ö‡y¢x¥±/¹…ZÊ•èö"€ÿm„qqzÃºw±¶}À~A`ôàF éU\ºd;mD#ğL¬PÔéõ:~ÚàØç;1ˆ¤m¥8¡t–M·;~µ½X÷ğßùVİk5—–ù”°]˜&øŒ‡¬3L«8e)QÚ0$¿@JX,éÅ!ñ<Œ„ÿ¾J#..òÖR#,Bs¹†Un½æ½ô×£~¤ãrÒÈ~ZÊ³DZ?P*ßÆ…"¶ğ°ê §äÊ¶›‹¬_íC¿?D9oêóğ/!ø²ÿ7_­™Ôm¾ã4ÖÆ~UúÕWai€<©î&éîŠ7¢4ğ3w/Êqyq&DŒ6cBÔ› ó<.çq,nú§a–Çİqƒ«ÿèÑèDù^	®ZB€„áŸüR«%'ôs”9ğ²ßív–™€6£Œºåe‡TüŠç~/VÊÃòâpÔ?Mö„°Š•FÊ¶x‘ŸÆ>üíwAÙÀÂ~gØ†‚lÕÛÛ‰óˆÈ!Óï¥ş@g2I›‰¼Ö¼ö¬„d‚¹¬ ×å`'î…@¥7iÚÍ^§§‘ø@U|¬$¾ 
-nƒHqax“Ñ ‘<Ô:wéUÙñC£v1XT-"b/Õm'IX¶ÒÖx¡êU6êcĞ¦[ˆ7ˆdÚèEhæ”1hA5Ÿ'&>‰.• ˆÂà¥]PYFy°³ª4l[‰à€fH™ŞD}Iÿ.’>˜Ÿ¨7Û­g»5As¾tÎ?ç%eÍÜ˜Sáş X¨-³†Oğ¥,÷óìÎPÓ‡l)“«(#ª›ŒºQW´–8U“;ü<Im…p«~S‰è:”3ªÒÕ\dÄ´ší¤
-·Õ¤}¿T­áÒJ™
-ª8êõâAgÚN5Mû—Ï¢d“Ì¦±µš¢§Zú­hY*jÉ&Í×æ¤¼†kïD·Vì¶(şš+ƒ{~Im{¸ïÂÈ!·,°NŞ›/ƒÿ3¼ÜkV’Ll1 ÅÓÏ­mÚ!Ê'ax’wïùÜlåöšæ†øƒÆôî!„SÇƒÀs‘Í”L8XÍ%,E:75>W›V×&ú#Ül¯hÁ?ï#wiÛ—$¢([ò_õJˆ÷B?÷Ã¸nÁıøİî²¿à@v»¾¿äO¹>‚0WxÁZN\Ã–Äu'êAœÒôãkÆø×äfË›]d²aòãKç–Ï-+63ˆ¾¸È•AJCßoµLÕ)-ÅçdÇY”@ÁˆR\&¤²ÿ#ÿHpFÀ•²eXğ}ac0ÍtÉOËŒ¡¯[Â­kI+¢åœ
-í|í%A'©0 Äk£ÎEr+ Óe©ÔtaÍjµââşÿ2daiœ3ïÏûçM+Ç½ƒ‹uét¨lDG©cçŸ[vi]"Ä9  ş»@„8¿8ÕòÑ•ù‚f‹®İdÄmÀ¡¹Àt¿©BES>Ù¼İ<ïj®[2¢+ŠdZ×ö¬]Û“[Òævnæ*¥)˜ËQª²u«¥`\Jd•ˆ­/¨ßÌ:£Ü[3IõÜj¥hjÍ`MiŒ3eËÓÜ8Ş˜)©•~’WW {†5Kg{/ƒŒã¿°¼W©™pD_èš å™Ñò<§#40T¹‡ZMëy’mÖf\É‰Hı%£[À,‘Ğ®b½}°˜}X^¶˜H’B‰ezÍ·,ƒ
-ÕÀ¬lcïãrsÎèÛ—2IG›QK}‹Q“ZYóÉè¹‘ïw;Ï8UaáÎëû<{šiŸ—ëeOÌ¡ÿ¸yäšĞnòÔßŒÉü§@ÎÍá8ÜÑ¹lÍL|Ñ2*ØiKK\  jƒB,nİg(ScÉh+FeföÙŠ&Ï3ÚQäƒGıĞŞñ\7¯9°³iaOd’Á%¬o!xZ°2İ¨LQN%f¿¥³Ğ.¼	ºvj·¥§,4³¦Ublh‘[ei¼€·\O®+N²iaĞ–2gô©7³Œ™Ú\£,gwxê¥vÔæ—, ›x´Á™}q©ev¼Úí<y×Q‡š†sçå©ê©@:àá‘IaA–j¦[†aÑ‰±ÃõK¦„Ø™·6¶óºxsYqôöB·)bdÁ=çPó˜”Ü”Ğ€)K§¢<å÷—Fç%Ny˜*'³<(°FÒ«kOCŒ2g†‹~Ëqºà Ô‹‹ã-›uÌ0µá$÷’LøÈóR–íè¤â§¶3d3)¢P)[g‡‘ka\â”ó—üÈ˜_/Ú]”Uæ^.hd¦i/ÙZvŞ¤&—±H„÷I¦¹a|iÖÎòÃ÷µ³ü²Â~¶‡ësìçÜÆÚYökãÔ©µ0Q;`ÃÃ{*ÀRÎxñœjçÿsµ>'PÅu ¾ì¬ÆÄémı¯£?}uüïøÑñÏ>=zrüÇªgXÂ—öxµ
-à÷†hwFĞÆ=¶’=œ™6<aÍm|÷è—¬‹ì¨~L˜çÍç™å¿}sü££/zÇïpôÍÑçG'à?¼hì#¼òìø‚süŞÑS˜Ãã£¯	6†üd‹„=^ğ4o'ƒçŸåG…y>áyüH­”œ,HñÉæŠ§c/xEıŞœMP¿wâAøŸS¦ú9^Ağƒ1†Š8Dr˜…]yTu†°sôÍZ´ç<ŠÊ²,-–G«²>wôÇ£/a~rüŞñG0…°v–™
-ÓcŠÛ ÔQ?a\ŒbxüáÑÓãç6XÙÌC°»Ãü÷ ß_=f`Aân‚Õ9Ä„¯ED±à¦hò-²äÑg(‰stÈNÆ1Ö‹í¹–Ë8$R­¯Ë¢£?‚xLzàÿ’‘£'$#ßØ\¯ƒeFƒb…r.™yMe8°úi¨Q±òÎpåxn¯ìôµ•càáš‚ÿ˜2ÀŞ}ˆSZ<f:Æ¢Úç%4NzBşşş7ø+ù=X`Um¦I¹Œ¤Ä[Ä~™k'%î†¹—€EƒH—}}çõ¹ùÖzësí…*âh ?ç<½!t\j	pR‘€;X))w×ç6–Zz×%(Üù<°Ğy-Òò³£Ï[½×nŞ™Û¸8UV´ÉóícnÂè\B“4~'éÃş¶ûG°Væø+± •XZ æöN’åÄß Ë=Auü@üÉÑğßûGŸèßâß™A3å’Àÿ'éÙ÷şö¨+àk‚ûè$ãaÆé#:¡áeŒHâ#ÍØœëüÿ<ûÄz‘ŸšÓ“ë)› ÷¥cFáĞ|ğ‚xoGLsg…ÊÀ#­ü)Ğu$f÷¼htE–(Kú‚2_B´/ kšô¤8÷âµÎ4¥ÛÙğ`o÷Hå}Ë‡€Ÿzğ¨¬Ê>3m8d¤£ošŞÑÿ%	öL×|ÅOŒQ$Íµ³€”…ßÏ§/¸yÿşë‰Ê‚ÀààBéğgñÌªEE‡à]kâ˜ücöA¬A”ùaÎŞ¼Ñè3çj`SøÄE{2ó¥ÄşÌƒ>?Åµ?úÚ#]ıîÉWøÌl"ş¢Ğa>f-`¤ÇÄÛ?ÂÉ¹ á>†êaĞw?öh0¬èŒ'ş‘hJë=Ÿ ZŠ/€ZM„Vú|.‹4„ñq?(²A·w‰÷?Çä(ÃQ«Hˆùl$Áqr„Ó_?rqèÚY!K$¸/ÿFşX«*l(¦H?ÓÌ~ Àû©š&•)‰Ÿk³1í®–iî4ş|JsæöÁñÇ€ŞÀ )¬òQ¹i±BlV #œA)å]¢Õéä1°¢?Ğ` Ï ÅŸàá§œ¾ÄUØüKúÏaÎÂÄá/uojz"V%ôSrl‘Ÿíy
-ƒ…kƒo]vGñWl lC£€yí`’ÿJEŒşüº¾Ç!A!üeTƒE}_—ş7¸S»ÿŠŠæøİâÊ¢à!­ÙLhÖÇï›ÿ)
-ßñ‡¤™P1õôØaHb¾(L\™ë%°	î7¸>%"¼Gs|Ÿ(†Ê%í)À³´o"„
-Ÿ°Åcc®xLËBP†¡ÁZH«¤5?dğp™°†0g™±q–ÛĞI/'íØ-à±wÃZßáÒ‘}„S¬Âhÿ€ŒõŞ4•¯Kä°°OZ6—"0ò¥¡úT†ËçZÒ (ïÒ&şÄ©èş $Èûî¿ÿo5ÆŸÌÁQR'ÿ[byÔƒ¨¶¾eöˆ¶< Ä¹+L51D ¨ÿJû,Xù6Ü4‚¹/	)ä\]µK}€(yÄFşã4U…äk¢Êßş¾7ãÜ?üÄ»³ù·¯œ˜üîDĞ·ÆX‘Ä¹´ş	ßšaèOW<
-¢g#ŞÄeøŒ˜‚`3™Ÿ¶F|3rCWöÆÚ ‰+pï¤=¸âø}f»ÜÙ4¶Á~Ó…n•«Ko€—®Áıİ/¼ïõòU¶Y#©ştv^÷t¬^ÉCèóÛ?Ø}&ôèø4Ì¯½ïm—vÑEnÂÔ™rıJI©¬9c™DÛµˆ½±à<ÆæÁ ÃïÑZ40„Æx*m­/,3­î1>@ËÄoè/i/{—	×4&?ıŠôİS¡îlJâÍqùöÄèÅ-¯¹às}Ê¶ÇØ†ØÍ¯÷Ä6mÈT©¡Væ9ÃzEÎ[˜0LŠä‰$ƒ|R*|[/öoövFa6TáÒ@õ‹ğh—FÓÀeËX`ftAšß’®ÄøÛ·lHö?¢'s@È|Á-|®ØÛ¨ĞÙe|D§q8Úï!'¹YÆƒ|ãTµZóÖ7èÔª2Ì"¼%ye¨ğtsïeoFÂFaw£~ŞÜò«½^_«qHÇ›¬9?xY÷^®VØïJ­îù>±gì×h?¯VæÃŠŞ™»·¼;B ÜŸfüÁè)=~ŞW>coj`uâIï¯¬zÆş*êÂjÕ³ƒ…19 ö€½õ“~YÇD½XCÕ@”è#¨ÛKÔL>"e’Uô¤÷6"¬™QdĞ“.]íqzògZLqT¥WRïˆ&ìÉ¨ç'#²Æä9‹^YŸ7ˆ6üû‹£­ªˆ;H#°G½…<úc-ä#ÀË´š;›…¾x ¥·€GÙ÷v2ĞªàIAõ{z'¿W€›¡øĞKÈZCB]¶Û¼yıÛ®]¿ı`ÚÌÏ×yÉ­7.n>¸}ıû×nCñÂªÕşÊÖÅ»Ôa±î]üÁ›._ßº|ã*•´Uã×¯¿ñàÖÕï¿~õ„Ò^®{Ğñûn_ÛºzëÚÍW pYk}ñÍ·®_¹ŠÖééöM$Ü<{¸suëöõËoÜÂ"³×µë·nßÜzñiisÃó\qk&¦·Dïİ¯{Y´½É'dîx¼W©{aêã€ş°×«{}P@×Ã¯]ç‡é#<3—Â×=‡«ÃK*—™FYñº~/‹êTö}Ô$FÉ5¦7DëçG¯'a„ÈÃ˜?ŠÀ~…µÄwĞW¼o9Õ=¼MæÖùõ€,ºK¥øëşÂ£|E¯!êho€zzàa4j²)9CÄëE¹wÚ ŒkìÏ•MZÙU^Éï\Ï®${¨ˆø´¶£,¦ÑëÉ(
-E©ìâ÷oñÕ`DÅS½D[6Pû›8‚ÜOlıšİ¸VúM¬^ÇVããÓqcÁWl YõÀóW$Ğ*”6ıë!QÇ*í@©wh‚Óüã`²]!$˜ˆ¡”QE3Mz!…K†bìığ‡|‚XÔw8»eå`ñU°äSUPğÓlªn˜t¶àªQàN
-/G=¥ÀÅ™˜ímµ8@knH¶²Ê«ávT‘¬ºg°'á‰²ÌŸ®ã-8(j´©]wØ§€¼—ù£ˆØ†gj«Š¾jöoİ|£‰¦M;îs„ÒĞYPW&98÷xNüW3ëÅA„W½Ïxm³Gs0ÌvªˆYNÍQ>±,îzUÑ¾õ·óoC×ƒx	[»wójmÕ Ôh°60—šòôaİDpm]½_&‰ØKü‘5‰çw‚LĞ¡OF§"4Â¶üI¯—Ôä-Ä³Ş†´TX^¦}¹Âi†<ÕBZ±JÒœ¨ïVµ‚k¬àĞ&ÒM²¶Šj5/ ¡~qúT¦ÈÈkïé­îšû
-Íİ8ßáœË*Rp­AôøÓìiˆC¸±š;~F >m©Ãª¼«H
-ähf)¢jS[o‹rÌÛŠĞÙ4	o«)$«%ªÄQ©MPøÄÄ8?ºkÒæ¨±şœÕxwÏk)¢öå5Ó©™ƒrµdõ$ü×„9Ã» z4ZZ¥‡«3ıçå«.Ö/e{kƒ4Šú·“»IÚƒ­jTØX„±)3&²}¯Á‡A£¹OÆE66KÇÌ0b'æ;)v©{©ÉGì=à—z.è6§¸Ÿ˜zU\Ä·m‡¨6ğ-¡ØÛ aŒµ˜ÜÚµúİ‹ï¯j«ıºŸï4wÆƒ$¯š8E@rĞÄYÖ8vB`½¾¼LècÎ4ÖíäØW@Öª“÷á¯;ğ·3¶ô#îJÄ[…¸Et¬3=L*4´Cj\Sl-Ö¼vÔX’xë³l©2TC¿“UE»š÷
-¢Òğª¢=@ñYÄ¤0o²ş²(ÈqæYuÔÜàßêá¼5İ¨Ÿì¢"oİæ<QÆìi_ÍHbE}jlv¯ÖìzmˆêhÖsàk
->Yñ˜Ódòjë±7lÅ9¶lsÇ®ªÌÅñ +®BÀs5¤ó–TY¤â<™¶›dnæu†€6ßÌi2ª–ã"kÇfíXı qŞ†8¯Cœ·!Îëç‹kEg$à7’àa¾Y%æG‹ù@‰0ß
-¼¤kmå–òe†âie%{ßû§—*—òwÅıa´j  öoY‹hÀë…’uĞ?sÈt‰®Œú(T}iiŞ™ÜQQùah›FHâîfk­ÑE¶±1Å9"·DŸæéÑÅâüY×7GĞutQÈO‘ş…}X.`€_úÉ;dH ÓTÍäø){ºƒÿ•òÙ!òQ¤„²‘4„påÍÏzZgs¤`µÊ¡ô¥DÒSÍ±ÅØ;²d7bbAÿ¿926€åškdÙåàj® ]­Pä!@¶ã}øJ¬1NE:øàÅ‚!¶¤fE¶äì$¢–ûÂí2n€9¬4ZMÑ¬T©Í¹¿<¸ä¬ìH®¥1 ²ÌàR¹æN›Èƒ‹°`—.Áß8ö
-üÖ[v’ÜÙò¶¼h›”h_ô£=XíAõŞ=¥‡u¯ná=Eíû÷Y L7]a"yÆğc!œ;ğZ+ì?,€Ñf?@aâOWÛ3LÑ„%š¦¤šz$¿¼Àœ¨‚pÊÑşu´¤ê'¥®«¢Kl`÷Ğõ€Ê„ZÂòÊ–†$¤l%
-a”U6¦]ÕÑúšf´B§33:YĞé”£ãÑqí+§dä`T¦q]`±Å®yrşly+,X¦Ú§Q@<Ä¦¸b,€²—BsDäãPp’'y•é#€*§¥˜õ6ºOqíî(pì€LëLĞX8=«ËAêºURì†ytÇïÇÙNÜß¶öI~@ =©»4uÔ2Dƒ«û`J«èéh ¿H–äæ‹/l±À$½†ê­‹|š¤!ÁAÒ‚¦˜Ã˜ãë„pÎœñøÛ¬<úÉğRıôhÁÚ)U6<<C>á(àc­&¬1çŒ(LÌ'äÔ#qä÷p‡©œ;Û®ˆEŸ¾\·üİˆVu3«u±g²è ¸‹Ûô¼©!gä^‡>Cr™ïáÛı÷mû&káY^³À™¨³¶»®-7”•¡ ĞDl×`ÙlÃ;kÕ©fEÛi,6w¯ƒ‹§Ã8½ù°:Ô‘],cŠ™9Œ$äıDİÜ6ê¥Úã!Œ­c‚£~Ã»q/g°oŠ8Æ%2¢¶d"¶MÑ8J›LSğx˜µÿ¤s[l1®àWÜÍæ‘¿L£â…	NÜG²€’ˆ*Re°¹ÜËÁ?Ëç‘›nh@a‡
-^†9äÇ
-&Ë€c*ó"`„İà/vÏ/Á3¸¾øÛ™W.™ÕrŞjÙ-ï«V'ÊÌ ¦&j”3PÁ“ ÃÍŒA3¿ˆvnç"•’ùæhr‰š\²<nÆĞso )·‚$Åm°*¤††Ë/¢”¶AÁ ?cUv´J%ú?ZB-¿ä'ğ–•&zã+q·+‚(è¶ŒÈŠl !4¿k*>9§WÀ±yİ„bP†ÖİMj·AkÖ¤‡šX¿&K(²f‡ºV’`Ê¶¾ğûÀOı^/êÙÜnjl‘ğD µì£:åE— hc4g\T½-
-Şi•ŠÚZÑ%q‚ m;š5ÀE5@ö¥"ì‹l“ÓÑàgÙºæ~Ÿï_˜yáV¸yªÏ-Ù1Èâ«)„W{Ÿ~!ò†äDV‚`«ªò¡n/·Ä¸0ÄWŸ”ôPÖ§á½Úâİqc¨É%ªKÚÔÈë1j/ÉÚ‹¦ñ<Ëš™&pygç¢”»¬eüì¿å¬d‚‰ÆáÕ~ÆÑ¶#ù…2¸¼Bsù&Û&&ù]©ÀmZß<AICNë
-ü"ãÚdÂh„Îõ/š
-€ïh,«v€¥²ÒÃˆOĞ&Xn…¨3`K8Áö‘*³ÂàäHÅ¥IIêaj—$î\8HÎéá‚Œ#‚ø
-AÒšz2»ş~µ›,{ˆûUøõ5Ùš¯µáL-óxV¤ƒP—raüã÷·1·3DÙxÈF«Òˆ¶¼×døgº´†t	ğÿkÉèz¿›À–mEÙ°—ëG§™ä×Q4‰ ›*R=Â¶‘]„6\8Ly`û…‚‹WæŞÕ@dšb_f+?ÑxTÄ9¬í—èm:E¡ª³ì2:_¹ÁvˆWj(á>Ş_aHq­ğÇ eÛ86ÄßÏ†y(x2ûç4'¸xŠ²USîRh¿¢orî]C¨§‘Îñ˜6Qqü‚xbl	mk5óÈ‡æ¡/ÓÇaêï]#Ÿ®¯Á¢4òÕ½;@­áĞi¤ÚäP, [¿`ó\îÄ|9 í…Â+Ö‘Ã-‹·¢möóĞKƒb,4ƒ¢ŸéV!MŒ4#ÍMZ†<Ìş ]XÖ†«{oQYÀºPçº÷_¨,4XTŒ‚êfŒ:TjĞVËôxÕŸ¾Sã—@M¨C`
-4zŞ¡`3Ec,"%£Á¹ã­ËíªÛé­x›U˜áMˆâĞÜ(Æk`¼JöKy¬{%P½é9ëG	J¶á)‰	%C2ÀY¹«	2Ğ ¦fk'ªA‘¼¼›5”ÙÕõ«šKx¯d®Ô+@ÕÊıú=ú‹O)Jñ©ÃŸ:ì	[ÊîêŞáİ;9{Jùvèğî{2º³ÑY¡½#qI5`İ¦ûA¾ßÄ›QòJ>çiò0º…¯àİ°Udqœ_¤T¥Ë‹µŠê‚	yîbú"ÔqÍÅUYø°sTOU~™.]‰bÛ»‡ÇS÷Ñ»ª`ĞµmÇıM#¼×„»É(ºTïÜóIİÓßqMCu^×QulUc“Æò4Â›3¼¢$æ	ş—O.´Ü3éj5nÓŸ³™;ü	‡3 Šf9A ¸ACsk c¤œ.Cc<wAØtî‚WğÉDt ³q‡ûzã]Sùú\õvšúål¶æ-j»0”Ğ=İ[»àîªı«`ÁÈÅP6Š¨¾¡ö~%72e¨‹š'4FpÛ77qé›r†˜à–Û3dQp°±Ê5ÜÈZ»AG¢PÔ$c™÷TÇ-ƒ¼-5-ÔnÉÚ-£–×oÁÁœ¯ñt/j=à/@p|$†ôÀËxáhâò®è´Æ©",²° ˜9q2,M™-S¸	”Å7$‹é6Å2O¾%Ø2û#Ú“¼zéfhs'tÎ0¨èıKUcÌ£1óYüß€ÑEQ]Ğƒ™Èâò[a³¹¸ºátpÙùíŠpuW­~!Òß¾Eô¯36eEšiş«ş Ÿës¨[N¨[êÖ‰¡JêH“š•hfuxLß-Î°êøP[nµn¬³±¸ê`ZÜò.ŞY5Ø`&ƒ"÷‹Öêªok¶e¯ƒÇ:6ï¨˜·TğX˜@Päë†
-4´N†K¯©ûì›*’¿ĞàÅê5i`_ Y­à¤ìÖ9ßfªØCXŞìJÉM’OQd÷?èt¤O7HÔ+ÔQ³â­YI¦ş şc~İå\ùd>ğƒ|H¯åhEÀ
-N·—©qSè»1¸›ä?…B1o}Mô8¬WÄ¯€‡¢ıAät¥uÔÇ\³1è%”Ğz6ĞGŞ r jM8´:[M<ˆ’hha ÍÍãÌ®_®QÂ*şât ]M7‡è
-Ì—NÎé2hãR²qü¥ŸÖÎ,³1åwF8ÄÙ®qiÉ(¿ÈUÎ»3¨mûø«ƒ¿:Ï¦¦'By!j9/[WÓœëˆp¼vóÎƒ+W¿¿âi›ˆ–Ğ+^¦ÑaÁ«^3“êÊL¨ë[H]rd]NÁŸÀé pù&¾ÊgËÀ¢RÄp…#Ğn;¬_¾3)^êlÆı~”^»ı:rGeB*EôêÔëM´T.³$ÏØjyHxY¥mß~ù@l™ğ}ù@\Ó?|[!m¶Ros<òEô0Ä»ş ‰×¡ıq§‹l{©òİÿø¬{üıZŞùW¨È¼’R¹Am·dKÎ²oëØ§ÉÏÒ)JzŞÜÆË£Ã—²C#A'o@Yä€²Mb½Ã¿™ùV9UkÍÑ­V*Ç—±ŞMÆxà!@xnZL$Şë}öU@È˜w*ÕçıvôËZwöİ¬:›©Ê
-Ğb˜)KS"„¯(E«¿rhÑ3B‡q²¼Óé1îp…ÛÑ›Ìeí/xUwDàšSP"ä×~ˆî.]1ÇŸ,dÜ7†ZÒYF…Ö–N²Ş
-ØP?@c®Z«pVö:·èX˜ğ—T‚şìPfî>ú—¾ö^>€1`Iéë´bìS•Cä ˜o•†¯Ö=õ8®š" <3æ+Ü*Ï…ÿì$çrm¼JM§Z»„jøbÂÆsQí÷ÏCµ¶Iµö¦Z)n3RÛTâ…cN<uh¡­Á.•AYÙş³ô?~¹3A¿"Â2"=ÃPgÿã—û†S¯Ììsc{	5BˆçPúkøˆê|6 G¿¬”,ß©R­J(Oİ`Ës$³ªµYœd+Hz å…8É£eŒ˜n¤L»¯a6¸øì8¹Fš~ =çrÌÁd²£Âh’ï*ê–S!¤ m§	5(ZOU4¯kEjàM~#f cÂ•g3‘b|çºÜD5ÁÅŠí‹ìÂ'-†-Õ3ÛLà"2á(œŞÏæOª$%Åu7ıL±ê·onêëm9£rµe^”çeV\W±w-ÌnZ[…–m«¥-1	âppİü3Å6]á'i0Né‚n!Ø5–:×‚Î°5ú—¹ ıEJÁËáCï‡ 
-áÖÌ\Ï8@ÎÜÇ•a>İY¼Àpœ«xÏ§İj©Í©·:+ÿ@á$¢£Æ¾Õ÷oµÎiÿ!?HÏkEÜ² (xÓ#§ÛPéè´R(áVšD
-z$ Ázßıî&Xï»ßş CÕ¯u¼“½y+TÇœCuXpâã Ç!¢Ï¶´ğ§laa=&Ùwğ¾bV×±¹û=®¾Ì;´_ˆÜHÏçäšâhOóñf=1'4KğùôøÇ”è‘£óö@fŠÃ&\e¿ÍW+vrÍJ¹&¡ÅyjudD³Ì[‹5\ÓÄYS3åadJQæ„V¶•¤sºÅ-Sõ9Moëî¨B†ÇS)EÛ|²z0Ãã`&MdaÍ°NÕ@æbR}ËÁÃkÆ¨2äVX³F^á#Ry#aìÎ†óZÍvËC+¶p¤ê4†È­òÄ5	UÊîNq*ºåi&óş¶üÍÈzÂˆY–*_Á¼NÅ«FŞ8Ûàôñ)š&bÙ7ü]º“b~¥ƒRJMh7¾Àà3£ëü Å3 Šc–ã93qóF¾i­ò…¨sEœ!?IKjéRrŠ'B©	 o—§¶¯¾|P–õÅˆİÖ¸ñ R£8Ò:iÎˆíN"StÊ dUŠØø%	gğE‘švsÚ8IÅ^ÿvyx†¯®nº<]ü`ò$>•I-mÚÙ8‹;q/ÎÇÁ¥T25ú‘-°If›âûĞ@"2šì­{j/ƒCñ³@’Ieª;¶Xg4Æy,¿¡İ^‹fè($
-Ãw5«¬ĞãÎæ	ÛãÙ÷‰zÀ*Ÿp¿Wè èPèãZñKI8F]F!—[fcÅ/Ş1}r\ĞÛ°ÑV+ø¥ª¤ºW¢Wg‡C:Øˆí³A‚Aûqàœ>-:6§4ÂÊy²$…òÜ°]÷ö@U&{Í0ÅA´	Co¯ì¡û'^UÄ»]¼m‹t}q•òêÅ×"õ½[œv_t¤»½vÆ»àÚ 5£ûN§Ùğš«![zö.:6ƒıŠ£‰„xÍlƒA¹ˆokVañeQùÓ‘;e™ÏÕÃ«#X\¦]­0WêœØÔ¡´1³ğL·"ƒü.ôãiş ¯x7J†y•ª{íÅV­f%çCÕ˜ôª¨ñJ”½¬›AÁC¸i&£)dš³2HÒû«*‡$ª”	@uel¦äÂöDY¹lÊë³ğ»Ú½+§LUÿç˜ıS0ÍnŒ¯“°iâ«7‘ Ë3ĞÑB¬¡ë]ö.“5ÙA¤eÍèxX'³;œÅ—W7§´XZ1U%¬J!¼=u(70²8@·Y#-İ‰F–ÀÚe¶‰1Xf¼G[Šƒb>M,íWà#ƒ§ôCLñiwbÍ¼¢HuŞ­w!½­Û4dYĞE/-uñtDÛĞÜo±D¢%-éá#1Ò/öC‘ıÖ¼(Á+9·_×]¿(Dï˜Šl¹|–x^¼äÌ–‡ôù’TH-‡ÒGÃz°êu`’˜oŒ’4ŠÖ
-G­¿#ÉC`L?Ş’™–ºiU´Ô(…tMr¡Ãt53T9e6[Ê•‰x›§'“Tc©ÊDª11‘ó‡?,öÓ˜=Õ2è^:]úf,"oZ™LOææí1–u—ç
-Ò#İ]…k%ÛSêµU{<ºA§îS©<–N]U“à¬Ü›Î®ÌÓ=ô,˜ÖJ°w5[
- ¬í>eÆô«{|Ö­®_	œV<[SÔ	ÑòğÙ¶¹IÛÂ³ir)e9è<U2c=u¶œ”İ–[UÊ§ñ„Ãä¿ë'Çd¹¦­¡Ê½s—[™Pg‰i‰Ì<ğ\ò71kj~¾E©R¥B²Ó¤ëWSÛIcWV¬)¶=Tk®t¯æ1j?™³•½î5ÍW¹úb°š(Ôs¸ˆ¬‹+dUA’àá›+…¬‘¤(ŒID:tÒƒşœ=ëİâ)ñO•‚aí¾ûğgŞÑoşxôû£?ıìè“£9úÕÑ¿BÉ¯Vğ}×mö)1öé´ŒWâ§l´-c
-eù}wô)Ë&ık‚©û³ú´'õçzø@[»R¹Õ3ëğe·™p“•‰‰^1•t	63(ŸÙğ0C|“çZÈòìDmªu;	1xÓ½!dš‚›°ïğ‹"xá2îã‰©½Çyì´Ìö·=ğÙh¢™!lƒåF™¥àR™fÜÄTëÊ{åoÕñ{JÉyØïÚyØ¯ÙzÁÀ°`6Öµ¤œSMEm2å–À>®²A„ÕáÃ4KRPzûâ÷[˜Tè]Ãò_QwÛàÓ¢\ñ!Ì¼›áBÈ¸š4`i¿½3ë,¸hÖ¤­nµØtLMÇvÓ·ä&h @º¿j5ÅB™ŠÄÌjÂ½'&7¥çØe,AkŠœÂ¥;$sld{Úşj:P´!h;^Sn¢È´{ãÓ%OébHdÊDXãX¢£ê-Uš³¾Ñş‚1:D3,#{ˆWˆ˜×¹×Ü7Üó½æØğÎ7¬ÏÕl-YLø<E|~0x>SùÎïâü=->zBã÷âWuJp:‡”±NƒÊgÏ¶LµD'M}›´ŒÕCaÊ¯šÌ°Î1¡ÏtÒÇú~$¾KŸßÃ/É…¶ŞÑ×ê‹¾Ç?ç_şËıAşÕ>dÜ,Œ‡ŸB¤¯ş¿½ü-}Ã“:şø£ãŸzôAçGì;è İ³øœ¾Ãˆ·->Â~J|›İ¯°CN‡o7÷òÓ€b /AP©{Ú*Ä(Mş…@øA €¨%ŒëÃ% ùÒG¹uıaO^ÜÍÓ1Ã‘Î%¸¸Gée€´¯r…	ì€9y¡aìx§5ƒ¼	øòŸo19¥ÿN›*f~Su!klîÁfj8€¼†eò\±…—g'Ó’­ˆØÂ‰èK©)~‚kŠ›yj¢VãIiÄgiŠ“ª+ìƒŒ,òKŒZs’ˆp‘úÜ`zºP¨CpÚ‹O:NÂsBßo3‡ ¢â ê{'šÅ5™Eát¡°8ˆú¬äÌƒğ.j ^`?¥Ïşó0JÇ·¢^äIz±×«Všy§.]£“÷ïá·™xè{¿Rkv“ôªìT;y_ñlç$DP¨BµÒÄŠ`ÿ=	¢ÃøàZğrNt*÷÷8—3œ¡BĞ²`¡¸E^t:ÂX V8££›±‡ºŸh‘Æ¡îİ_µÄzïìdç¯¦éøÖ—Ö
-ò,õÏ,êøA¡ú.Ëû“z‹O²:(÷Ã¼¸rkîÒ™Ìºî½1Üí ÀÎOÁoğó®åˆğïÏN]í[´Ú•èU­ ®ª°ÛšúiŸdá¦^€*–-Ø;Œ ´çij3«/•ºpÂ¨'Î«ó}”ÚÌ‘õRÛ‡ÿuµûX½Z©Ê®aÜ­{×jvÖ"pQ¾£]È·¨ûvü=tæb³BêMG:ÈIÙªB$`9^&é!'ëÑº ¨BœjÇÄ÷óX6@Ço3Ùà¨‰/ãÃÇøßÿÃß«ÇâÍzõÚˆëP¯c¬*ï ½½3*³„>‹²
-|·âöÉÛÙ3£QR4ÊÃH9ÒZÍùå²ÌhíUqU‡Şöğ³ê½suoQ|ğoöÏ…<Ã+/ö‰¯Hš‰J_|™G|–L|cÇl;ùÓdÅ“¹Gâˆá>ûÀ8 ½¶È¿7&§§zÓŠyÂ7ŸPâ+%°ôôŠ>Ù³Ñƒ§óéK_f3î3$‡sğ½0ä&r¾ÍU2îa=•v¯Õ\”÷œ%rî¼µ\÷–î×f'jƒƒ‚hfĞÓŠK©äHŸ§Dt¦¤–7>²c|©—ısàZŒ—–ın·³¬å.D?ç8+7Á‡ï.Øù¼ï€MI§@g'0÷[Ñr·ë‚nÁøv¸N…=)c£x±Íâ4™Æ)ˆ–Ô‰(U1yâ@¤n«Ó]œ}oİ/Å[kÎö.½´/.'	±
-ú`ÂNƒ©ÛË®œº”iQĞKuoá¾5TÙ
-q\ùŠì•âø\ëT¢N0İ—Îû2îšŒ»ŸÄ­ÕŸÁoÌ‹´É›×AÿÏ?Ë4ûÏ½>K…õqâËH)è®l]¼û`«CÔ>,(ˆ…±6Y˜j‘vn0"";ãÕ³Òùšì#¬æºÌ¸&ÆœgC…ÒoÇÊåewâğ|éQã»}5jj¨O[ë}“>
-—ŞUúb`ö’•‚¯5L”c®a‰S'öUKº:¡.//¶€ÎŒúTgXƒsİ$ƒEüÛjw³‘{QO@³–ŸµLÕÌšjƒşkŸ["İ9…ËOL;Ğ+‹ÏÂÃ.ÃRˆß‘ğQ)ô]”v6€ŒtÎÔ—Ü5ŞSaÎÔ—›¼¼·›œÚ[Ä2XÏçŠ;ªK›IãvŒÀ¢¸ˆ©ÇkÏ€+¸xb„´½«	vP#íïf,Wne9r¡ü†ƒ¬×Èô4Åê}z£{õ$HzIjØÃªGÂM&Ln¸ÙG¾ıbó¬Ø]˜¥gGïÅS*‚áÁVÛùæ­~æR|½O-!¤.ß±#—Ôi7Rš!_‘øÍ5yÅ@f…#û‰îQ»ĞU¯øMCWËM €KÕVpV¼D¶zê°†ÿ];›i<È7à¾†wòİŞÆ©ÿŸ¼ëŞ­xœ340031Qğñtvõveg³¾´ÉúkŞ<£¨³rÓö­ÊÚjÕlQäêèâëª—›ÂÀù1|IÁY!»°×s_•+×ÿa°™U”™—’Z¡—Q’ËpËZîRë¤"ãs§3³Ë¼šd¿Ÿº (v)¢¶xœSVp.MJÕu)J,ÏÌK×)JÌÌK- Q¢¾d€xœËõ˜à ø³k(ò#Èû>«¿«
-
-
-=== FILE: .git/objects/pack/pack-b36b7f06281af2231a1613c8fb3eab069081bfab.idx ===
-ÿtOc                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     	   	   	   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-aJ÷,Lk¸¾¥ˆá&bH	ñW¤pÍ>Vëêus#ü <;Ò²;õn2ZÍ–¾ªjµ:ƒ*vU5¸Pn±1­îÃ?á€Ú.wP€#ëúôU¨Š¦»Í^ÄŸG/Ô>Rª?B(—¼ñ~O3îA·İZ˜c$„8Ö–“:V¡Ú¡1XRi¾`G(ñá¨N(¨ÖæÌĞÁ.ÌÆ‚µÚ;Ò…’rD3ÎËikvJ‚÷ÊÑİr©ç(J3PÃµzÍW¯ø*˜šÇ¿üo˜’ˆâmÛöt“şœ¹	h» 3ÖæœÖLu½÷ÖíèˆR²K  á  ]$  
-a     	ğ  µ  ]D  Ú  (ı  \³³k(ò#Èû>«¿«â¿8Ê23ßIö­TîÜ!¿ÃS
-
-
-=== FILE: .git/objects/pack/pack-b36b7f06281af2231a1613c8fb3eab069081bfab.rev ===
-RIDX                               	      ³k(ò#Èû>«¿«h÷Ü°]Ñ bBÅ‹µ·ğLb
-
-
-=== FILE: .git/packed-refs ===
-# pack-refs with: peeled fully-peeled sorted 
-2a765535b8506eb131ad05ee7fc33fe180da170e refs/remotes/origin/main
-
-
-
-=== FILE: .git/config ===
-[core]
-	repositoryformatversion = 0
-	filemode = true
-	bare = false
-	logallrefupdates = true
-[remote "origin"]
-	url = https://github.com/KiselkovD/Cube-Drawing-Trainer.git
-	fetch = +refs/heads/*:refs/remotes/origin/*
-[branch "main"]
-	remote = origin
-	merge = refs/heads/main
-	vscode-merge-base = origin/main
-
-
-
-=== FILE: .git/description ===
-Unnamed repository; edit this file 'description' to name the repository.
-
-
-
-=== FILE: .git/HEAD ===
-ref: refs/heads/main
-
 
 

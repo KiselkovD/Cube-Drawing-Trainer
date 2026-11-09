@@ -1,11 +1,11 @@
-import { COLORS, THRESHOLDS } from './config.js'
+import { COLORS, THRESHOLDS, withAlpha } from './config.js'
 import {
   add3,
   mulM3M3, mulM3V3,
   rotateAroundAxis3,
   scale3,
 } from './core/math.js'
-import { computeVPTriangle } from './perspective.js'
+import { computeVPTriangle, recoveredFovDeg } from './perspective.js'
 
 // ============ helpers ============
 
@@ -537,9 +537,47 @@ export function drawSimplifiedGraph(ctx, analysis) {
   }
 }
 
-export function drawRecognized(ctx, analysis, camera) {
+function drawRecognizedGuideLines(ctx, r, camera, color) {
+  if (!r.fullVertices || !r.vps) return;
+  let nearest = null, minZ = Infinity;
+  for (const [, p] of r.fullVertices) {
+    if (p[2] < minZ) { minZ = p[2]; nearest = p; }
+  }
+  if (!nearest) return;
+  const ns = camera.project3D(nearest);
+  if (!ns) return;
+  ctx.save();
+  ctx.strokeStyle = withAlpha(color, 0.55);
+  ctx.lineWidth = 1.3;
+  ctx.setLineDash([5, 5]);
+  for (const vp of r.vps) {
+    if (!vp) continue;
+    if (vp.type === 'finite' && isFinite(vp.x) && isFinite(vp.y)) {
+      const dx = vp.x - ns.x, dy = vp.y - ns.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1) continue;
+      const ext = Math.min(len, 2000);
+      ctx.beginPath();
+      ctx.moveTo(ns.x, ns.y);
+      ctx.lineTo(ns.x + dx / len * ext, ns.y + dy / len * ext);
+      ctx.stroke();
+    } else if (vp.type === 'infinity' && vp.dir2D) {
+      const [ux, uy] = vp.dir2D;
+      ctx.beginPath();
+      ctx.moveTo(ns.x, ns.y);
+      ctx.lineTo(ns.x + ux * 1500, ns.y + uy * 1500);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+export function drawRecognized(ctx, analysis, camera, showGuides) {
   for (const r of analysis) {
     if (!r.success) continue;
+    const color = r.colors.graph;
+    const hiddenColor = withAlpha(color, 0.35);
+
     const visible = new Set();
     for (const e of r.merged.edges) {
       visible.add(e.aId + '-' + e.bId);
@@ -551,38 +589,166 @@ export function drawRecognized(ctx, analysis, camera) {
       const sa = camera.project3D(pa), sb = camera.project3D(pb);
       if (!sa || !sb) continue;
       const isVisible = visible.has(a + '-' + b) || visible.has(b + '-' + a);
-      ctx.strokeStyle = isVisible ? COLORS.recognized : COLORS.recognizedHidden;
+      ctx.strokeStyle = isVisible ? color : hiddenColor;
       ctx.lineWidth = isVisible ? 2 : 1.2;
       ctx.setLineDash(isVisible ? [] : [4, 4]);
       ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke();
     }
     ctx.setLineDash([]);
 
+    if (showGuides) drawRecognizedGuideLines(ctx, r, camera, color);
+
     for (const [id, p] of r.fullVertices) {
       if (typeof id === 'string') continue;
       const sp = camera.project3D(p);
       if (!sp) continue;
-      ctx.fillStyle = COLORS.recognized;
+      ctx.fillStyle = color;
       ctx.beginPath(); ctx.arc(sp.x, sp.y, 3, 0, Math.PI * 2); ctx.fill();
     }
 
     const centerVid = r.structure.type === 3 ? r.structure.C : r.structure.A;
     const centerPos = r.fullVertices.get(centerVid);
-    if (centerPos) {
-      const sc = camera.project3D(centerPos);
-      if (sc) {
-        const fit = r.error.avg < 5 ? '✓' : r.error.avg < 15 ? '⚠' : '✗';
-        const persp = r.perspective === '2-point' ? '2' : '3';
-        const label = `T${r.type}·${persp} ${fit}${r.error.avg.toFixed(1)}px`;
+    if (!centerPos) continue;
+    const sc = camera.project3D(centerPos);
+    if (!sc) continue;
+    const persp = r.perspective === '2-point' ? '2' : '3';
+    const fit = r.error.avg < 5 ? '✓' : r.error.avg < 15 ? '⚠' : '✗';
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = color;
+    ctx.fillText(`T${r.type}·${persp} ${fit}${r.error.avg.toFixed(1)}px`,
+      sc.x + 8, sc.y - 6);
+    ctx.restore();
+  }
+}
+
+export function drawAnalysisVPs(ctx, analysis, camera, view) {
+  const pp = camera.principalPoint;
+  const vw = camera.viewportWidth, vh = camera.viewportHeight;
+  const margin = 40;
+  const vx = view ? view.x : 0, vy = view ? view.y : 0;
+  const axes = ['x', 'y', 'z'];
+
+  const onScreen = (wx, wy) => {
+    const sx = wx + vx, sy = wy + vy;
+    return sx >= margin && sx <= vw - margin && sy >= margin && sy <= vh - margin;
+  };
+
+  const normalMarker = (wx, wy, color, label) => {
+    ctx.save();
+    ctx.fillStyle = withAlpha(color, 0.9);
+    ctx.beginPath(); ctx.arc(wx, wy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = withAlpha(color, 1);
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(label, wx + 9, wy + 4);
+    ctx.restore();
+  };
+
+  const edgeArrow = (wx, wy, color, label) => {
+    const sx = wx + vx, sy = wy + vy;
+    const cx = vw / 2, cy = vh / 2;
+    const dx = sx - cx, dy = sy - cy;
+    const k = Math.max(
+      Math.abs(dx) / (vw / 2 - margin),
+      Math.abs(dy) / (vh / 2 - margin), 1e-6);
+    const ex = Math.max(margin, Math.min(vw - margin, cx + dx / k));
+    const ey = Math.max(margin, Math.min(vh - margin, cy + dy / k));
+    const ang = Math.atan2(dy, dx);
+    ctx.save();
+    ctx.translate(-vx, -vy);
+    ctx.fillStyle = withAlpha(color, 0.9);
+    ctx.beginPath(); ctx.arc(ex, ey, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ex + Math.cos(ang + Math.PI * 0.75) * 6, ey + Math.sin(ang + Math.PI * 0.75) * 6);
+    ctx.lineTo(ex, ey);
+    ctx.lineTo(ex + Math.cos(ang - Math.PI * 0.75) * 6, ey + Math.sin(ang - Math.PI * 0.75) * 6);
+    ctx.stroke();
+    ctx.fillStyle = withAlpha(color, 1);
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    const dist = Math.hypot(wx - pp.x, wy - pp.y);
+    ctx.fillText(label + ' ' + Math.round(dist) + 'px', ex, ey + 26);
+    ctx.restore();
+  };
+
+  for (const r of analysis) {
+    if (!r.success || !r.vps) continue;
+    const color = r.colors.graph;
+    for (let i = 0; i < r.vps.length; i++) {
+      const vp = r.vps[i];
+      if (!vp) continue;
+      const ax = axes[i % 3];
+      const label = 'VP' + ax.toUpperCase();
+
+      if (vp.type === 'finite' && isFinite(vp.x) && isFinite(vp.y)) {
+        if (onScreen(vp.x, vp.y)) normalMarker(vp.x, vp.y, color, label);
+        else edgeArrow(vp.x, vp.y, color, label);
+      } else if ((vp.type === 'infinity' || vp.type === 'axisInf') && vp.dir2D) {
+        const [ux, uy] = vp.dir2D;
+        const len = 110;
         ctx.save();
+        ctx.strokeStyle = withAlpha(color, 0.7);
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(pp.x, pp.y);
+        ctx.lineTo(pp.x + ux * len, pp.y + uy * len);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = withAlpha(color, 0.95);
+        ctx.beginPath();
+        ctx.arc(pp.x + ux * len, pp.y + uy * len, 4, 0, Math.PI * 2);
+        ctx.fill();
         ctx.font = 'bold 10px monospace';
-        const m = ctx.measureText(label);
-        ctx.fillStyle = 'rgba(0,0,0,0.78)';
-        ctx.fillRect(sc.x + 8, sc.y - 20, m.width + 8, 14);
-        ctx.fillStyle = COLORS.recognized;
-        ctx.fillText(label, sc.x + 12, sc.y - 9);
+        ctx.fillText(label + ' ∞', pp.x + ux * len + 7, pp.y + uy * len + 4);
         ctx.restore();
       }
     }
+  }
+}
+
+export function drawAnalysisInfo(ctx, analysis, camera) {
+  const pp = camera.principalPoint;
+  for (const r of analysis) {
+    if (!r.success) continue;
+    const centerVid = r.structure.type === 3 ? r.structure.C : r.structure.A;
+    const centerPos = r.fullVertices.get(centerVid);
+    if (!centerPos) continue;
+    const sc = camera.project3D(centerPos);
+    if (!sc) continue;
+
+    const lines = [];
+    const fov = recoveredFovDeg(r.vps, camera);
+    if (fov != null && isFinite(fov)) lines.push(`FOV≈${fov.toFixed(1)}°`);
+    if (r.vps) {
+      r.vps.forEach((vp, i) => {
+        const ax = ['X', 'Y', 'Z'][i % 3];
+        if (!vp) return;
+        if (vp.type === 'finite' && isFinite(vp.x) && isFinite(vp.y))
+          lines.push(`VP${ax}(${vp.x.toFixed(0)},${vp.y.toFixed(0)})`);
+        else if (vp.type === 'infinity' || vp.type === 'axisInf')
+          lines.push(`VP${ax} ∞`);
+      });
+    }
+    lines.push(`SP(${pp.x.toFixed(0)},${pp.y.toFixed(0)})`);
+    if (!lines.length) continue;
+
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    let maxW = 0;
+    for (const l of lines) maxW = Math.max(maxW, ctx.measureText(l).width);
+    const boxH = lines.length * 13 + 6;
+    const bx = sc.x + 8, by = sc.y + 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    ctx.fillRect(bx, by, maxW + 12, boxH);
+    ctx.strokeStyle = withAlpha(r.colors.graph, 0.7);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, maxW + 12, boxH);
+    ctx.fillStyle = r.colors.graph;
+    lines.forEach((l, i) => ctx.fillText(l, bx + 6, by + 13 + i * 13));
+    ctx.restore();
   }
 }
