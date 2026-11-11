@@ -118,9 +118,32 @@ export class UIManager {
     this._els.toolSegContainer.addEventListener('click', (e) => {
       const btn = e.target.closest('.tb-seg-btn');
       if (!btn) return;
-      this.app.setTool(btn.dataset.tool);
-      this._rebuildTools();
-      this._applyBodyClasses();
+      if (btn.dataset.action === 'moveOff') {
+        this.state.ui.moveSnap = false;
+        this.state.ui.groupMove = false;
+        this._rebuildTools();
+        this.state.emit();
+        return;
+      }
+      if (btn.dataset.action === 'moveSnap') {
+        this.state.ui.moveSnap = !this.state.ui.moveSnap;
+        if (this.state.ui.moveSnap) this.state.ui.groupMove = false;
+        this._rebuildTools();
+        this.state.emit();
+        return;
+      }
+      if (btn.dataset.action === 'groupMove') {
+        this.state.ui.groupMove = !this.state.ui.groupMove;
+        if (this.state.ui.groupMove) this.state.ui.moveSnap = false;
+        this._rebuildTools();
+        this.state.emit();
+        return;
+      }
+      if (btn.dataset.tool) {
+        this.app.setTool(btn.dataset.tool);
+        this._rebuildTools();
+        this._applyBodyClasses();
+      }
     });
   }
 
@@ -145,12 +168,25 @@ export class UIManager {
   _rebuildTools() {
     const mode = this.state.ui.mode;
     const isAnalysis = mode === 'practice' || mode === 'exam';
+    const isMove = this.state.ui.tool === 'move';
     const tools = isAnalysis
       ? [{ id: 'segment', label: 'Отрез' }, { id: 'erase', label: 'Удал' }, { id: 'move', label: 'Движ' }]
-      : [{ id: 'create', label: 'Созд' }, { id: 'link', label: 'Связ' }, { id: 'move', label: 'Движ' }];
-    this._els.toolSegContainer.innerHTML = tools.map((t) =>
+      : [{ id: 'create', label: 'Рис' }, { id: 'erase', label: 'Удал' }, { id: 'move', label: 'Движ' }];
+    const row1 = tools.map((t) =>
       `<button class="tb-seg-btn${t.id === this.state.ui.tool ? ' active' : ''}" data-tool="${t.id}">${t.label}</button>`
     ).join('');
+    let html = `<div class="tb-seg">${row1}</div>`;
+    if (isMove) {
+      const offActive = (!this.state.ui.moveSnap && !this.state.ui.groupMove) ? ' active' : '';
+      const msActive = this.state.ui.moveSnap ? ' active' : '';
+      const gmActive = this.state.ui.groupMove ? ' active' : '';
+      const row2 =
+        `<button class="tb-seg-btn${offActive}" data-action="moveOff" title="Без режима">—</button>` +
+        `<button class="tb-seg-btn${msActive}" data-action="moveSnap" title="Прилипание к точке">Прилип</button>` +
+        `<button class="tb-seg-btn${gmActive}" data-action="groupMove" title="Групповое движение">Груп</button>`;
+      html += `<div class="tb-seg">${row2}</div>`;
+    }
+    this._els.toolSegContainer.innerHTML = html;
   }
 
   _applyBodyClasses() {
@@ -195,7 +231,7 @@ export class UIManager {
     else if (toolName === 'segment') { this._els.toolIndicator.textContent = 'Отрезок'; this._els.toolIndicator.classList.add('segment'); }
     else if (toolName === 'erase') { this._els.toolIndicator.textContent = 'Удал'; this._els.toolIndicator.classList.add('erase'); }
     else if (toolName === 'link') { this._els.toolIndicator.textContent = 'Связка'; this._els.toolIndicator.classList.add('link'); }
-    else { this._els.toolIndicator.textContent = 'Куб'; }
+    else { this._els.toolIndicator.textContent = 'Рис'; }
 
     const setActive = (id, on) => this._$(id).classList.toggle('active', on);
     setActive('spBtn', st.ui.showSP);

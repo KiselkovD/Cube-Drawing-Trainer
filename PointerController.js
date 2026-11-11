@@ -25,12 +25,19 @@ export class PointerController {
     e.preventDefault();
     try { this.canvas.setPointerCapture(e.pointerId); } catch {}
     this._activePointer = e.pointerId;
-    this.toolManager.onPointerDown(this._toWorld(e));
+    const w = this._toWorld(e);
+    this.state.interaction.hoverWorld = w;
+    this.toolManager.onPointerDown(w);
   }
 
   _onMove(e) {
-    if (this._activePointer == null) return;
-    this.toolManager.onPointerMove(this._toWorld(e));
+    const w = this._toWorld(e);
+    this.state.interaction.hoverWorld = w;
+    if (this._activePointer == null) {
+      this.state.emit();
+      return;
+    }
+    this.toolManager.onPointerMove(w);
   }
 
   _onUp(e) {

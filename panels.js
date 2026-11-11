@@ -1,3 +1,4 @@
+import { DEFAULTS } from './config.js'
 import { angleAtVertex, rad2deg } from './core/math.js'
 import { computeVPTriangle } from './perspective.js'
 
@@ -63,11 +64,15 @@ class SizePanel {
   mount() {
     this.el = $('panelSize');
     this.rowsEl = $('sizeRows');
-    this.btn = $('deleteBtn');
+    this.btn = $('linkToggleBtn');
     this.btn.addEventListener('click', () => {
       const box = getSelectedBox(this.state);
       if (!box) return;
-      this.state.document.removeBox(box.id);
+      if (box.link) {
+        box.link = null;
+      } else {
+        box.link = { ...DEFAULTS.linkDefaults };
+      }
       this.app.pushHistory();
       this.state.emit();
     });
@@ -82,13 +87,22 @@ class SizePanel {
       if (this._structureKey !== 'empty') {
         this.rowsEl.innerHTML = '<div class="hint">Выберите куб</div>';
         this._structureKey = 'empty';
-        this._lastBoxId = null; 
+        this._lastBoxId = null;
       }
       this.btn.disabled = true;
       return;
     }
 
     this.btn.disabled = false;
+    if (box.link) {
+      this.btn.textContent = 'Удалить связь';
+      this.btn.classList.add('link-remove');
+      this.btn.classList.remove('link-add');
+    } else {
+      this.btn.textContent = 'Создать связь';
+      this.btn.classList.add('link-add');
+      this.btn.classList.remove('link-remove');
+    }
 
     if (this._structureKey !== key) {
       this._structureKey = key;

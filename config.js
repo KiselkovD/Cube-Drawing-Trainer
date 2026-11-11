@@ -26,6 +26,7 @@ export const THRESHOLDS = {
   hitBoxPx: 28,
   hitSegBodyPx: 14,
   hitSegEndpointPx: 15,
+  groupMovePx: 20,
   graphSnapPx: 10,
   graphLinePx: 2.5,
   graphParamEps: 0.02,
@@ -44,7 +45,7 @@ export const DEFAULTS = {
   horizonOffset: 0.3,
   pictureSizeCm: 20,
   boxSize: { w: 200, h: 200, dep: 200 },
-  linkDefaults: { d1: 200, d2: 200, theta: 60, alpha: 0, beta: 0, secW: 200, secH: 200, secDep: 200 },
+  linkDefaults: { d1: 200, d2: 200, theta: Math.PI / 3, alpha: 0, beta: 0, secW: 200, secH: 200, secDep: 200 },
   bottomBarHeightPx: 148,
 };
 

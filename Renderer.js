@@ -79,6 +79,8 @@ export class Renderer {
       if (hasSuccess) L.drawSP(ctx, camera);
     }
 
+    L.drawGroupRadius(ctx, state);
+
     ctx.restore();
   }
 }

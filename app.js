@@ -30,12 +30,14 @@ export class AppState {
       showAnalysisVPs: false,
       showRawGraph: false,
       showSimplifiedGraph: true,
+      groupMove: false,
+      moveSnap: false,
       tablesMode: 'full',
       snapStart: 'points',
       snapEnd: 'points',
       defaultSegmentStyle: 'solid',
     };
-    this.interaction = { draft: null };
+    this.interaction = { draft: null, hoverWorld: null };
     this._listeners = new Set();
   }
 
@@ -154,7 +156,7 @@ export class Application {
     this.state.ui.mode = mode;
     const validTools = (mode === 'practice' || mode === 'exam')
       ? ['segment', 'erase', 'move']
-      : ['create', 'link', 'move'];
+      : ['create', 'move', 'erase'];
     if (!validTools.includes(this.state.ui.tool)) this.toolManager.setTool(validTools[0]);
     this.state.emit();
   }

@@ -110,7 +110,26 @@ export class MoveTool extends Tool {
       return;
     }
     const mode = this.state.ui.mode;
+    const useGroup = this.state.ui.groupMove;
+    const r = THRESHOLDS.groupMovePx;
+
     if (mode === 'theory') {
+      if (useGroup) {
+        const affected = [];
+        for (const b of this.state.document.boxes) {
+          if (Math.hypot(b.center.x - world.x, b.center.y - world.y) <= r) {
+            affected.push({ id: b.id, start: { x: b.center.x, y: b.center.y } });
+          }
+        }
+        if (affected.length) {
+          this.drag = { kind: 'boxes', boxes: affected, world };
+          this.state.emit();
+          return;
+        }
+        this.drag = { kind: 'pan', world };
+        this.state.emit();
+        return;
+      }
       const box = this.state.document.hitBox(world, THRESHOLDS.hitBoxPx);
       if (box) {
         this.state.document.selectedBoxId = box.id;
@@ -119,7 +138,27 @@ export class MoveTool extends Tool {
         return;
       }
     }
+
     if (mode === 'practice' || mode === 'exam') {
+      if (useGroup) {
+        const list = mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
+        const affected = [];
+        for (const s of list) {
+          for (const end of ['a', 'b']) {
+            if (Math.hypot(s[end].x - world.x, s[end].y - world.y) <= r) {
+              affected.push({ segId: s.id, end, orig: { x: s[end].x, y: s[end].y } });
+            }
+          }
+        }
+        if (affected.length) {
+          this.drag = { kind: 'endpoints', endpoints: affected, mode, world };
+          this.state.emit();
+          return;
+        }
+        this.drag = { kind: 'pan', world };
+        this.state.emit();
+        return;
+      }
       const ep = this.state.document.hitSegmentEndpoint(world, THRESHOLDS.hitSegEndpointPx, mode);
       if (ep) {
         const list = mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
@@ -147,11 +186,34 @@ export class MoveTool extends Tool {
   onPointerMove(world) {
     if (!this.drag) return;
     const d = this.drag;
+    const snapOn = this.state.ui.moveSnap;
+    const snapR = THRESHOLDS.snapPointPx;
+
     if (d.kind === 'box') {
       const box = this.state.document.boxes.find((b) => b.id === d.boxId);
       if (box) {
-        box.center.x = d.start.x + (world.x - d.world.x);
-        box.center.y = d.start.y + (world.y - d.world.y);
+        let nx = d.start.x + (world.x - d.world.x);
+        let ny = d.start.y + (world.y - d.world.y);
+        if (snapOn) {
+          let best = null, bestDist = snapR;
+          for (const b of this.state.document.boxes) {
+            if (b.id === d.boxId) continue;
+            const dd = Math.hypot(b.center.x - nx, b.center.y - ny);
+            if (dd < bestDist) { best = b.center; bestDist = dd; }
+          }
+          if (best) { nx = best.x; ny = best.y; }
+        }
+        box.center.x = nx;
+        box.center.y = ny;
+      }
+    } else if (d.kind === 'boxes') {
+      const dx = world.x - d.world.x, dy = world.y - d.world.y;
+      for (const b of d.boxes) {
+        const box = this.state.document.boxes.find((bb) => bb.id === b.id);
+        if (box) {
+          box.center.x = b.start.x + dx;
+          box.center.y = b.start.y + dy;
+        }
       }
     } else if (d.kind === 'pan') {
       this.state.view.x += world.x - d.world.x;
@@ -160,8 +222,31 @@ export class MoveTool extends Tool {
       const list = d.mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
       const seg = list.find((s) => s.id === d.segId);
       if (seg) {
-        seg[d.end].x = d.orig.x + (world.x - d.world.x);
-        seg[d.end].y = d.orig.y + (world.y - d.world.y);
+        let nx = d.orig.x + (world.x - d.world.x);
+        let ny = d.orig.y + (world.y - d.world.y);
+        if (snapOn) {
+          let best = null, bestDist = snapR;
+          for (const s of list) {
+            for (const end of ['a', 'b']) {
+              if (s.id === d.segId && end === d.end) continue;
+              const dd = Math.hypot(s[end].x - nx, s[end].y - ny);
+              if (dd < bestDist) { best = s[end]; bestDist = dd; }
+            }
+          }
+          if (best) { nx = best.x; ny = best.y; }
+        }
+        seg[d.end].x = nx;
+        seg[d.end].y = ny;
+      }
+    } else if (d.kind === 'endpoints') {
+      const list = d.mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
+      const dx = world.x - d.world.x, dy = world.y - d.world.y;
+      for (const ep of d.endpoints) {
+        const seg = list.find((s) => s.id === ep.segId);
+        if (seg) {
+          seg[ep.end].x = ep.orig.x + dx;
+          seg[ep.end].y = ep.orig.y + dy;
+        }
       }
     } else if (d.kind === 'vp3') {
       const cam = this.state.camera;
@@ -286,13 +371,23 @@ export class EraseTool extends Tool {
   onPointerDown(world) {
     const st = this.state;
     const mode = st.ui.mode;
-    const hit = st.document.hitSegmentBody(world, THRESHOLDS.hitSegBodyPx, mode);
-    if (hit) {
-      if (mode === 'exam') st.document.removeExamSegment(hit.id);
-      else st.document.removeSegment(hit.id);
-      this.history.push(st.document);
-      st.emit();
-      return;
+    if (mode === 'theory') {
+      const box = st.document.hitBox(world, THRESHOLDS.hitBoxPx);
+      if (box) {
+        st.document.removeBox(box.id);
+        this.history.push(st.document);
+        st.emit();
+        return;
+      }
+    } else {
+      const hit = st.document.hitSegmentBody(world, THRESHOLDS.hitSegBodyPx, mode);
+      if (hit) {
+        if (mode === 'exam') st.document.removeExamSegment(hit.id);
+        else st.document.removeSegment(hit.id);
+        this.history.push(st.document);
+        st.emit();
+        return;
+      }
     }
     this.drag = { kind: 'pan', world };
   }
@@ -313,7 +408,6 @@ export function createTools({ state, history }) {
   const ctx = { state, history };
   return {
     create: new CreateBoxTool(ctx),
-    link: new CreateLinkTool(ctx),
     move: new MoveTool(ctx),
     segment: new SegmentTool(ctx),
     erase: new EraseTool(ctx),

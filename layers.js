@@ -752,3 +752,22 @@ export function drawAnalysisInfo(ctx, analysis, camera) {
     ctx.restore();
   }
 }
+
+export function drawGroupRadius(ctx, state) {
+  if (state.ui.tool !== 'move') return;
+  if (!state.ui.groupMove) return;
+  const hw = state.interaction.hoverWorld;
+  if (!hw) return;
+  const r = THRESHOLDS.groupMovePx;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,138,74,0.55)';
+  ctx.fillStyle = 'rgba(255,138,74,0.08)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.arc(hw.x, hw.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
