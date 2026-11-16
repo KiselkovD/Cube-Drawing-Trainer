@@ -138,48 +138,6 @@ export class MoveTool extends Tool {
         return;
       }
     }
-
-    if (mode === 'practice' || mode === 'exam') {
-      if (useGroup) {
-        const list = mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
-        const affected = [];
-        for (const s of list) {
-          for (const end of ['a', 'b']) {
-            if (Math.hypot(s[end].x - world.x, s[end].y - world.y) <= r) {
-              affected.push({ segId: s.id, end, orig: { x: s[end].x, y: s[end].y } });
-            }
-          }
-        }
-        if (affected.length) {
-          this.drag = { kind: 'endpoints', endpoints: affected, mode, world };
-          this.state.emit();
-          return;
-        }
-        this.drag = { kind: 'pan', world };
-        this.state.emit();
-        return;
-      }
-      const ep = this.state.document.hitSegmentEndpoint(world, THRESHOLDS.hitSegEndpointPx, mode);
-      if (ep) {
-        const list = mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
-        const seg = list.find((s) => s.id === ep.segId);
-        if (mode === 'exam') this.state.document.selectedExamSegmentId = ep.segId;
-        else this.state.document.selectedSegmentId = ep.segId;
-        this.drag = { kind: 'endpoint', segId: ep.segId, end: ep.end, mode, orig: { x: seg[ep.end].x, y: seg[ep.end].y }, world };
-        this.state.emit();
-        return;
-      }
-      const body = this.state.document.hitSegmentBody(world, THRESHOLDS.hitSegBodyPx, mode);
-      if (body) {
-        if (mode === 'exam') this.state.document.selectedExamSegmentId = body.id;
-        else this.state.document.selectedSegmentId = body.id;
-        this.drag = { kind: 'select' };
-        this.state.emit();
-        return;
-      }
-      if (mode === 'exam') this.state.document.selectedExamSegmentId = null;
-      else this.state.document.selectedSegmentId = null;
-    }
     this.drag = { kind: 'pan', world };
   }
 
@@ -218,7 +176,7 @@ export class MoveTool extends Tool {
     } else if (d.kind === 'pan') {
       this.state.view.x += world.x - d.world.x;
       this.state.view.y += world.y - d.world.y;
-    } else if (d.kind === 'endpoint') {
+          } else if (d.kind === 'endpoint') {
       const list = d.mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
       const seg = list.find((s) => s.id === d.segId);
       if (seg) {
@@ -352,8 +310,13 @@ export class SegmentTool extends Tool {
       b: { x: endX, y: endY },
       style: st.ui.defaultSegmentStyle,
     });
-    if (isExam) st.document.addExamSegment(seg);
-    else st.document.addSegment(seg);
+    if (isExam) {
+      st.document.addExamSegment(seg);
+      st.document.selectedExamSegmentId = null;
+    } else {
+      st.document.addSegment(seg);
+      st.document.selectedSegmentId = null;
+    }
     st.interaction.draft = null;
     this.history.push(st.document);
     st.emit();

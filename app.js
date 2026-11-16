@@ -30,12 +30,13 @@ export class AppState {
       showAnalysisVPs: false,
       showRawGraph: false,
       showSimplifiedGraph: true,
+      showEdgeDims: false,
       groupMove: false,
       moveSnap: false,
       tablesMode: 'full',
       snapStart: 'points',
       snapEnd: 'points',
-      defaultSegmentStyle: 'solid',
+      defaultSegmentStyle: 'normal',
     };
     this.interaction = { draft: null, hoverWorld: null };
     this._listeners = new Set();

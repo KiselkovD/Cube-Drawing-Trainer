@@ -38,9 +38,10 @@ export function buildGraph(segments) {
   const EPS_PAR = THRESHOLDS.graphParallelEps;
 
   const raw = [];
-  for (const s of segments) {
-    raw.push({ x: s.a.x, y: s.a.y });
-    raw.push({ x: s.b.x, y: s.b.y });
+  for (let si = 0; si < segments.length; si++) {
+    const s = segments[si];
+    raw.push({ x: s.a.x, y: s.a.y, srcSegs: [si] });
+    raw.push({ x: s.b.x, y: s.b.y, srcSegs: [si] });
   }
   for (let i = 0; i < segments.length; i++) {
     const s1 = segments[i];
@@ -58,7 +59,7 @@ export function buildGraph(segments) {
       const u = ((s2.a.x - s1.a.x) * d1y - (s2.a.y - s1.a.y) * d1x) / den;
       if (t < -EPS_PARAM || t > 1 + EPS_PARAM) continue;
       if (u < -EPS_PARAM || u > 1 + EPS_PARAM) continue;
-      raw.push({ x: s1.a.x + t * d1x, y: s1.a.y + t * d1y });
+      raw.push({ x: s1.a.x + t * d1x, y: s1.a.y + t * d1y, srcSegs: [i, j] });
     }
   }
 
@@ -86,14 +87,22 @@ export function buildGraph(segments) {
   }
 
   const groups = new Map();
+  const clusterSegs = new Map();
   for (let i = 0; i < raw.length; i++) {
     const r = find(i);
     if (!groups.has(r)) groups.set(r, { sx: 0, sy: 0, n: 0 });
     const g = groups.get(r);
     g.sx += raw[i].x; g.sy += raw[i].y; g.n++;
+    if (!clusterSegs.has(r)) clusterSegs.set(r, new Set());
+    for (const si of raw[i].srcSegs) clusterSegs.get(r).add(si);
   }
   const vertices = [];
-  for (const [, g] of groups) vertices.push({ id: vertices.length, x: g.sx / g.n, y: g.sy / g.n });
+  const vertexSegs = [];
+  for (const [root, g] of groups) {
+    const vid = vertices.length;
+    vertices.push({ id: vid, x: g.sx / g.n, y: g.sy / g.n });
+    vertexSegs.push(clusterSegs.get(root));
+  }
 
   const segSplits = segments.map(() => []);
   for (let i = 0; i < segments.length; i++) {
@@ -103,6 +112,11 @@ export function buildGraph(segments) {
     if (len2 < 1e-6) continue;
     for (const v of vertices) {
       const t = ((v.x - s.a.x) * dx + (v.y - s.a.y) * dy) / len2;
+      const knownOnSeg = vertexSegs[v.id].has(i);
+      if (knownOnSeg) {
+        segSplits[i].push({ t, vertexId: v.id });
+        continue;
+      }
       if (t < -EPS_PARAM || t > 1 + EPS_PARAM) continue;
       const proj = projectOnLine(v, s.a, s.b);
       if (Math.hypot(v.x - proj.x, v.y - proj.y) > EPS_LINE) continue;
@@ -499,7 +513,7 @@ function buildT3(structure, rawDirs, vps, camera, V) {
     [N[0], X12], [N[0], X13], [N[1], X12], [N[1], X23], [N[2], X13], [N[2], X23],
     [X12, '__back__'], [X13, '__back__'], [X23, '__back__'],
   ];
-  return { ok: true, pos3D, fullVertices, allEdges };
+  return { ok: true, pos3D, fullVertices, allEdges, sides: L };
 }
 
 function buildT2(structure, rawDirs, vps, camera, V) {
@@ -543,7 +557,7 @@ function buildT2(structure, rawDirs, vps, camera, V) {
     [X1, '__bb__'], [X2, '__bb__'],
     ['__bt__', '__bb__'],
   ];
-  return { ok: true, pos3D, fullVertices, allEdges };
+  return { ok: true, pos3D, fullVertices, allEdges, sides: [Lc, Ll, Lr] };
 }
 
 function computeError(pos3D, V, camera) {
@@ -563,80 +577,90 @@ function computeError(pos3D, V, camera) {
 // ===== analyze =====
 export function analyze(segments, camera, options = {}) {
   const { fixedCamera = false } = options;
-  const solid = segments.filter((s) => s.style !== 'dashed');
-  if (solid.length < 1) return [];
-  const comps = componentize(solid);
   const results = [];
+  const styleGroups = [
+    segments.filter((s) => s.style === 'normal'),
+    segments.filter((s) => s.style === 'secondary'),
+  ];
 
-  comps.forEach((comp, idx) => {
-    const raw = buildGraph(comp);
-    const merged = simplifyGraph(raw);
-    const colors = graphColors(idx);
-    const res = {
-      idx, raw, merged, colors,
-      type: null, structure: null, groups: null, vps: null,
-      perspective: null, parallelGroups: null, angles: null,
-      pos3D: null, fullVertices: null, allEdges: null,
-      error: null, success: false, reason: '', fixedCamera,
-    };
+  let globalIdx = 0;
 
-    if (merged.vertices.length === 0 || merged.edges.length === 0) {
-      res.reason = 'пустой граф'; results.push(res); return;
+  for (const groupSegs of styleGroups) {
+    if (groupSegs.length < 1) continue;
+    const comps = componentize(groupSegs);
+
+    for (const comp of comps) {
+      const idx = globalIdx++;
+      const raw = buildGraph(comp);
+      const merged = simplifyGraph(raw);
+      const colors = graphColors(idx);
+      const res = {
+        idx, raw, merged, colors,
+        type: null, structure: null, groups: null, vps: null,
+        perspective: null, parallelGroups: null, angles: null,
+        pos3D: null, fullVertices: null, allEdges: null, sides: null,
+        error: null, success: false, reason: '', fixedCamera,
+      };
+
+      if (merged.vertices.length === 0 || merged.edges.length === 0) {
+        res.reason = 'пустой граф'; results.push(res); continue;
+      }
+
+      const structure = findStructure(merged);
+      if (!structure) {
+        res.reason = `V=${merged.vertices.length} E=${merged.edges.length}`;
+        results.push(res); continue;
+      }
+      res.type = structure.type;
+      res.structure = structure;
+
+      if (structure.type === 1) { res.reason = 'T1'; results.push(res); continue; }
+
+      const localGroups = makeGroups(structure);
+      res.groups = localGroups;
+      const persp = classifyPerspective(localGroups, merged.vertices);
+      res.perspective = persp.perspective;
+      res.parallelGroups = persp.parallelGroups;
+      res.angles = persp.angles;
+
+      let vps, rawDirs;
+
+      if (fixedCamera) {
+        const cameraVPs = getCameraVPs(camera);
+        const assignment = assignVPsToGroups(localGroups, merged.vertices, cameraVPs, camera);
+        if (!assignment) { res.reason = 'VP match'; results.push(res); continue; }
+        res.vps = assignment.map((a) => cameraVPs[a.axisIdx]
+          ? { type: 'finite', x: cameraVPs[a.axisIdx].x, y: cameraVPs[a.axisIdx].y, axisIdx: a.axisIdx }
+          : { type: 'axisInf', axisIdx: a.axisIdx });
+        const R = camera.R_wc;
+        rawDirs = assignment.map((a) => [R[0][a.axisIdx], R[1][a.axisIdx], R[2][a.axisIdx]]);
+        vps = res.vps;
+      } else {
+        vps = localGroups.map((g, i) => groupVP(g, merged.vertices, camera, persp.parallelGroups[i]));
+        res.vps = vps;
+        if (vps.some((v) => v.type === 'fail')) { res.reason = 'VP'; results.push(res); continue; }
+        rawDirs = vps.map((v) => dirFromVP(v, camera));
+        if (rawDirs.some((d) => !d)) { res.reason = 'направление'; results.push(res); continue; }
+      }
+
+      const build = structure.type === 3
+        ? buildT3(structure, rawDirs, vps, camera, merged.vertices)
+        : buildT2(structure, rawDirs, vps, camera, merged.vertices);
+
+      if (!build.ok) { res.reason = build.reason; results.push(res); continue; }
+
+      const err = computeError(build.pos3D, merged.vertices, camera);
+      if (!err.ok) { res.reason = 'за камерой'; results.push(res); continue; }
+
+      res.pos3D = build.pos3D;
+      res.fullVertices = build.fullVertices;
+      res.allEdges = build.allEdges;
+      res.sides = build.sides;
+      res.error = err;
+      res.success = true;
+      results.push(res);
     }
-
-    const structure = findStructure(merged);
-    if (!structure) {
-      res.reason = `V=${merged.vertices.length} E=${merged.edges.length}`;
-      results.push(res); return;
-    }
-    res.type = structure.type;
-    res.structure = structure;
-
-    if (structure.type === 1) { res.reason = 'T1'; results.push(res); return; }
-
-    const groups = makeGroups(structure);
-    res.groups = groups;
-    const persp = classifyPerspective(groups, merged.vertices);
-    res.perspective = persp.perspective;
-    res.parallelGroups = persp.parallelGroups;
-    res.angles = persp.angles;
-
-    let vps, rawDirs;
-
-    if (fixedCamera) {
-      const cameraVPs = getCameraVPs(camera);
-      const assignment = assignVPsToGroups(groups, merged.vertices, cameraVPs, camera);
-      if (!assignment) { res.reason = 'VP match'; results.push(res); return; }
-      res.vps = assignment.map((a) => cameraVPs[a.axisIdx]
-        ? { type: 'finite', x: cameraVPs[a.axisIdx].x, y: cameraVPs[a.axisIdx].y, axisIdx: a.axisIdx }
-        : { type: 'axisInf', axisIdx: a.axisIdx });
-      const R = camera.R_wc;
-      rawDirs = assignment.map((a) => [R[0][a.axisIdx], R[1][a.axisIdx], R[2][a.axisIdx]]);
-      vps = res.vps;
-    } else {
-      vps = groups.map((g, i) => groupVP(g, merged.vertices, camera, persp.parallelGroups[i]));
-      res.vps = vps;
-      if (vps.some((v) => v.type === 'fail')) { res.reason = 'VP'; results.push(res); return; }
-      rawDirs = vps.map((v) => dirFromVP(v, camera));
-      if (rawDirs.some((d) => !d)) { res.reason = 'направление'; results.push(res); return; }
-    }
-
-    const build = structure.type === 3
-      ? buildT3(structure, rawDirs, vps, camera, merged.vertices)
-      : buildT2(structure, rawDirs, vps, camera, merged.vertices);
-
-    if (!build.ok) { res.reason = build.reason; results.push(res); return; }
-
-    const err = computeError(build.pos3D, merged.vertices, camera);
-    if (!err.ok) { res.reason = 'за камерой'; results.push(res); return; }
-
-    res.pos3D = build.pos3D;
-    res.fullVertices = build.fullVertices;
-    res.allEdges = build.allEdges;
-    res.error = err;
-    res.success = true;
-    results.push(res);
-  });
+  }
 
   return results;
 }

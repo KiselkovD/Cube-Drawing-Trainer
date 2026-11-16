@@ -1,5 +1,5 @@
-import { DEFAULTS } from './config.js'
-import { angleAtVertex, rad2deg } from './core/math.js'
+import { COLORS, DEFAULTS } from './config.js'
+import { add3, angleAtVertex, mulM3M3, rad2deg, scale3 } from './core/math.js'
 import { computeVPTriangle } from './perspective.js'
 
 function $(id) { return document.getElementById(id); }
@@ -337,6 +337,97 @@ class OrthoPanel {
   }
 }
 
+// ===== EdgeDimsPanel — размеры 12 рёбер + 3 центральных отрезков =====
+class EdgeDimsPanel {
+  constructor({ state }) {
+    this.state = state;
+    this.el = null;
+    this.rowsEl = null;
+  }
+
+  mount() {
+    this.el = $('panelEdgeDims');
+    this.rowsEl = $('edgeDimsRows');
+  }
+
+  update() {
+    if (this.state.ui.mode !== 'theory') return;
+    if (!this.state.ui.showEdgeDims) return;
+
+    const box = getSelectedBox(this.state);
+    if (!box) { this.rowsEl.innerHTML = '<div class="hint">Выберите куб</div>'; return; }
+
+    const camera = this.state.camera;
+    const cmPerPx = camera.pictureSizeCm / camera.pictureRect.w;
+
+    const main_cam = box.getMainCenterCam(camera);
+    const R_main = box.getRotationMatrix();
+    const R_main_cam = mulM3M3(camera.R_wc, R_main);
+
+    const { w, h, dep } = box.size;
+
+    const axisKeys = ['x', 'y', 'z'];
+    const axisNames = ['VPx', 'VPy', 'VPz'];
+    const axisSizes = [w, h, dep];
+
+    const edgeGroups = [
+      { axis: 0, edges: [[0, 1], [3, 2], [4, 5], [7, 6]] },
+      { axis: 1, edges: [[0, 3], [1, 2], [4, 7], [5, 6]] },
+      { axis: 2, edges: [[0, 4], [1, 5], [2, 6], [3, 7]] },
+    ];
+
+        const pp = camera.principalPoint;
+    const d = camera.focalLength;
+    const cc = camera.project3D(main_cam);
+
+    function vpOf(colIdx) {
+      const dir = [R_main_cam[0][colIdx], R_main_cam[1][colIdx], R_main_cam[2][colIdx]];
+      if (Math.abs(dir[2]) < 1e-6) return null;
+      return { x: pp.x + d * dir[0] / dir[2], y: pp.y - d * dir[1] / dir[2] };
+    }
+
+    let out = '';
+
+    const depthPx = main_cam[2] - d;
+    const depthCm = depthPx * cmPerPx;
+    const rayPx = Math.hypot(main_cam[0], main_cam[1], main_cam[2]);
+    const rayCm = rayPx * cmPerPx;
+
+    out += `<div class="sec-h" style="color:#c8c8c8">Центр</div>`;
+    out += `<div class="row"><label>Depth</label><span class="val">${depthPx.toFixed(0)}px</span><span class="val cm">${depthCm.toFixed(2)}</span></div>`;
+    out += `<div class="row"><label>Ray</label><span class="val">${rayPx.toFixed(0)}px</span><span class="val cm">${rayCm.toFixed(2)}</span></div>`;
+
+    for (let ax = 0; ax < 3; ax++) {
+      const rgb = COLORS.vp[axisKeys[ax]];
+      const colorHex = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+
+      out += `<div class="sec-h" style="color:${colorHex}">${axisNames[ax]}</div>`;
+
+      const halfSize = axisSizes[ax] / 2;
+      const axisDir = [R_main_cam[0][ax], R_main_cam[1][ax], R_main_cam[2][ax]];
+      const endA = add3(main_cam, scale3(axisDir, -halfSize));
+      const endB = add3(main_cam, scale3(axisDir, halfSize));
+      const sa = camera.project3D(endA);
+      const sb = camera.project3D(endB);
+      if (sa && sb) {
+        const lenPx = Math.hypot(sb.x - sa.x, sb.y - sa.y);
+        const lenCm = lenPx * cmPerPx;
+        out += `<div class="row"><label>Len</label><span class="val">${lenPx.toFixed(0)}px</span><span class="val cm">${lenCm.toFixed(2)}</span></div>`;
+      }
+
+      const vp = vpOf(ax);
+      if (cc && vp) {
+        const distPx = Math.hypot(vp.x - cc.x, vp.y - cc.y);
+        out += `<div class="row"><label>VP</label><span class="val" style="grid-column:span 2;text-align:right">${distPx.toFixed(0)}px</span></div>`;
+      } else {
+        out += `<div class="row"><label>VP</label><span class="val" style="grid-column:span 2;text-align:right">∞</span></div>`;
+      }
+    }
+
+    this.rowsEl.innerHTML = out;
+  }
+}
+
 // ===== SnapPanel, StylePanel — без ползунков, DOM не пересоздаётся при update =====
 class SnapPanel {
   constructor({ state }) { this.state = state; this.el = null; }
@@ -360,73 +451,20 @@ class SnapPanel {
   }
 }
 
-class StylePanel {
-  constructor({ state, app }) { this.state = state; this.app = app; this.el = null; }
-  mount() {
-    this.el = $('panelSegStyle');
-    this.el.querySelectorAll('.snap-seg[data-target="segStyle"] .snap-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const val = btn.dataset.val;
-        this.state.ui.defaultSegmentStyle = val;
-        const mode = this.state.ui.mode;
-        const sel = mode === 'exam'
-          ? this.state.document.getSelectedExamSegment()
-          : this.state.document.getSelectedSegment();
-        if (sel) {
-          sel.style = val;
-          this.app.pushHistory();
-        }
-        this.update();
-        this.state.emit();
-      });
-    });
-    $('deleteSegBtn').addEventListener('click', () => {
-      const mode = this.state.ui.mode;
-      const sel = mode === 'exam'
-        ? this.state.document.getSelectedExamSegment()
-        : this.state.document.getSelectedSegment();
-      if (!sel) return;
-      if (mode === 'exam') this.state.document.removeExamSegment(sel.id);
-      else this.state.document.removeSegment(sel.id);
-      this.app.pushHistory();
-      this.state.emit();
-    });
-  }
-  update() {
-    const mode = this.state.ui.mode;
-    const sel = mode === 'exam'
-      ? this.state.document.getSelectedExamSegment()
-      : this.state.document.getSelectedSegment();
-    const info = $('segStyleInfo');
-    if (sel) {
-      info.textContent = 'Выбран: ' + sel.id;
-      info.style.color = '#ffd888';
-    } else {
-      info.textContent = 'Новые отрезки';
-      info.style.color = '';
-    }
-    const cur = sel ? sel.style : this.state.ui.defaultSegmentStyle;
-    this.el.querySelectorAll('.snap-seg[data-target="segStyle"] .snap-btn').forEach((b) => {
-      b.classList.toggle('active', b.dataset.val === cur);
-    });
-    $('deleteSegBtn').disabled = !sel;
-  }
-}
-
 export function createPanels({ state, app }) {
   const size = new SizePanel({ state, app });
   const rotation = new RotationPanel({ state, app });
   const ortho = new OrthoPanel({ state });
+  const edgeDims = new EdgeDimsPanel({ state });
   const snap = new SnapPanel({ state });
-  const style = new StylePanel({ state, app });
 
   return {
     mount() {
       size.mount();
       rotation.mount();
       ortho.mount();
+      edgeDims.mount();
       snap.mount();
-      style.mount();
     },
     update() {
       const tm = state.ui.tablesMode;
@@ -434,11 +472,11 @@ export function createPanels({ state, app }) {
 
       if (mode === 'practice' || mode === 'exam') {
         if (tm === 'size' || tm === 'full') snap.update();
-        if (tm === 'rotation' || tm === 'full') style.update();
       } else {
         if (tm === 'size' || tm === 'full') size.update();
         if (tm === 'rotation' || tm === 'full') rotation.update();
         if (state.ui.showOrthoTable) ortho.update();
+        if (state.ui.showEdgeDims) edgeDims.update();
       }
     },
   };

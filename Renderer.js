@@ -60,12 +60,15 @@ export class Renderer {
     }
 
     if (state.ui.visibility.theory) L.drawBoxes(ctx, state, camera);
+    if (state.ui.visibility.theory && state.ui.showEdgeDims) {
+      L.drawEdgeDimensions(ctx, state, camera);
+    }
     if (state.ui.visibility.practice) L.drawSegments(ctx, state, 'practice');
     if (state.ui.visibility.exam) L.drawSegments(ctx, state, 'exam');
 
     if (isAnalysis) L.drawDraft(ctx, state, camera);
 
-    if (state.ui.showRawGraph) L.drawRawGraph(ctx, analysis);
+        if (state.ui.showRawGraph) L.drawRawGraph(ctx, analysis);
     if (state.ui.showSimplifiedGraph) L.drawSimplifiedGraph(ctx, analysis);
     if (state.ui.showRecognized) {
       L.drawRecognized(ctx, analysis, camera, state.ui.showGuides);

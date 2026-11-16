@@ -23,6 +23,10 @@
     <div class="panel-title"><span style="color:#ffb800">Орто-треугольник</span></div>
     <div id="orthoRows"><div class="hint">—</div></div>
   </div>
+  <div class="panel" id="panelEdgeDims" style="display:none">
+    <div class="panel-title"><span>Рёбра куба</span></div>
+    <div id="edgeDimsRows"><div class="hint">—</div></div>
+  </div>
   <div class="panel" id="panelSnap" style="display:none">
     <div class="panel-title"><span>Прилипание</span></div>
     <div class="snap-row">
@@ -41,18 +45,6 @@
         <button class="snap-btn" data-val="none">—</button>
       </div>
     </div>
-  </div>
-  <div class="panel" id="panelSegStyle" style="display:none">
-    <div class="panel-title"><span>Вид отрезка</span></div>
-    <div id="segStyleInfo" class="hint">Новые отрезки</div>
-    <div class="snap-row">
-      <span class="snap-lbl">Стиль</span>
-      <div class="snap-seg" data-target="segStyle">
-        <button class="snap-btn active" data-val="solid">Вид</button>
-        <button class="snap-btn" data-val="dashed">Зад</button>
-      </div>
-    </div>
-    <button class="del-btn" id="deleteSegBtn" disabled>Удалить отрезок</button>
   </div>
 </div>
 
@@ -82,10 +74,13 @@
       </div>
     </div>
   </div>
-  <div class="top-box" id="toolBox">
+    <div class="top-box" id="toolBox">
     <div class="tool-indicator" id="toolIndicator">Создание</div>
     <div class="tool-bottom">
-      <div id="toolSegContainer"></div>
+      <div class="tb-seg" id="toolSegContainer"></div>
+    </div>
+    <div class="tool-bottom" id="segTypeRow" style="display:none">
+      <div class="tb-seg" id="segTypeContainer"></div>
     </div>
   </div>
 </div>
@@ -96,6 +91,7 @@
       <button class="bb-btn active" id="spBtn" title="Точка стояния">SP</button>
       <button class="bb-btn active" id="guidesBtn" title="Направляющие">Напр</button>
       <button class="bb-btn" id="guidesSecBtn" title="Напр. второстепенного">Напр₂</button>
+      <button class="bb-btn dims" id="edgeDimsBtn" title="Размеры рёбер выделенного куба">Рёбра</button>
       <button class="bb-btn ortho" id="triBtn" title="Треугольник VP">Тр</button>
       <button class="bb-btn ortho" id="orthoTableBtn" title="Орто-таблица">Орто</button>
       <button class="bb-btn raw" id="rawGraphBtn" title="Точки исходного графа" style="display:none">Точки</button>
@@ -106,7 +102,7 @@
       <button class="bb-btn" id="clearBtn" title="Очистить">↺</button>
     </div>
   </div>
-  <div class="bb-row">
+  <div class="bb-row" id="camRow">
     <div class="bb-cell" id="fovCell" style="flex: 2 1 0;">
       <span class="lbl">FOV</span>
       <input type="range" id="fovSlider" min="20" max="140" step="1" value="90">

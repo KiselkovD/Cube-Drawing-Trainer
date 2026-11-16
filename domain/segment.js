@@ -1,9 +1,15 @@
 export class Segment {
-  constructor({ id, a, b, style = 'solid' }) {
+  constructor({ id, a, b, style = 'normal' }) {
     this.id = id;
     this.a = { x: a.x, y: a.y };
     this.b = { x: b.x, y: b.y };
-    this.style = style;
+    this.style = Segment._migrate(style);
+  }
+
+  static _migrate(s) {
+    if (s === 'solid') return 'normal';
+    if (s === 'dashed') return 'ignored';
+    return s;
   }
 
   getMid() { return { x: (this.a.x + this.b.x) / 2, y: (this.a.y + this.b.y) / 2 }; }

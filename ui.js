@@ -13,6 +13,7 @@ export class UIManager {
   mount(root) {
     this._els.vpAnalysisBtn = this._$('vpAnalysisBtn');
     this._els.fovCell = this._$('fovCell');
+    this._els.camRow = this._$('camRow');
     this._els.horizonRow = this._$('horizonRow');
     this._els.fovSlider = this._$('fovSlider');
     this._els.fovValue = this._$('fovValue');
@@ -25,14 +26,18 @@ export class UIManager {
     this._els.panelSize = this._$('panelSize');
     this._els.panelRot = this._$('panelRot');
     this._els.panelOrtho = this._$('panelOrtho');
+    this._els.panelEdgeDims = this._$('panelEdgeDims');
     this._els.panelSnap = this._$('panelSnap');
-    this._els.panelSegStyle = this._$('panelSegStyle');
+    this._els.segTypeRow = this._$('segTypeRow');
+    this._els.segTypeContainer = this._$('segTypeContainer');
     this._els.helpOverlay = this._$('helpOverlay');
     this._els.undoBtn = this._$('undoBtn');
+    this._els.edgeDimsBtn = this._$('edgeDimsBtn');
 
     this._wireTopBar();
     this._wireBottomBar();
     this._wireToolBar();
+    this._wireSegType();
     this._wireSliders();
     this._wireHelp();
     this._wireModeButtons();
@@ -42,6 +47,46 @@ export class UIManager {
     this._applyBodyClasses();
     this._updateBottomBarVisibility();
     this.update();
+  }
+
+  _wireSegType() {
+    this._els.segTypeContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tb-seg-btn');
+      if (!btn) return;
+      this.state.ui.defaultSegmentStyle = btn.dataset.stype;
+      this._lastSegTypeKey = null;
+      this._rebuildSegTypes(true);
+      this.state.emit();
+    });
+  }
+
+  _getSelectedSegmentForMode() {
+    const mode = this.state.ui.mode;
+    if (mode === 'exam') return this.state.document.getSelectedExamSegment();
+    if (mode === 'practice') return this.state.document.getSelectedSegment();
+    return null;
+  }
+
+  _rebuildSegTypes(force = false) {
+    const mode = this.state.ui.mode;
+    const isAnalysis = mode === 'practice' || mode === 'exam';
+    const visible = isAnalysis && this.state.ui.tool === 'segment';
+    this._els.segTypeRow.style.display = visible ? '' : 'none';
+    if (!visible) return;
+
+    const current = this.state.ui.defaultSegmentStyle;
+    if (!force && this._lastSegTypeKey === current) return;
+    this._lastSegTypeKey = current;
+
+    const types = [
+      { id: 'normal', label: 'Обыч' },
+      { id: 'ignored', label: 'Игнор' },
+      { id: 'secondary', label: 'Втор' },
+    ];
+    this._els.segTypeContainer.innerHTML = types.map((t) => {
+      const active = t.id === current ? ' active' : '';
+      return `<button class="tb-seg-btn${active}" data-stype="${t.id}">${t.label}</button>`;
+    }).join('');
   }
 
   _wireModeButtons() {
@@ -108,6 +153,10 @@ export class UIManager {
     });
     this._$('orthoTableBtn').addEventListener('click', () => {
       this.state.ui.showOrthoTable = !this.state.ui.showOrthoTable;
+      this.state.emit();
+    });
+    this._$('edgeDimsBtn').addEventListener('click', () => {
+      this.state.ui.showEdgeDims = !this.state.ui.showEdgeDims;
       this.state.emit();
     });
     this._$('undoBtn').addEventListener('click', () => this.app.undo());
@@ -201,6 +250,7 @@ export class UIManager {
     this._$('guidesSecBtn').style.display = isAnalysis ? 'none' : '';
     this._$('triBtn').style.display = isAnalysis ? 'none' : '';
     this._$('orthoTableBtn').style.display = isAnalysis ? 'none' : '';
+    this._$('edgeDimsBtn').style.display = isAnalysis ? 'none' : '';
     this._$('cubeRecoBtn').style.display = isAnalysis ? '' : 'none';
     this._$('rawGraphBtn').style.display = isAnalysis ? '' : 'none';
     this._$('simpGraphBtn').style.display = isAnalysis ? '' : 'none';
@@ -211,6 +261,7 @@ export class UIManager {
     const isPractice = this.state.ui.mode === 'practice';
     this._els.fovCell.style.display = isPractice ? 'none' : '';
     this._els.horizonRow.style.display = isPractice ? 'none' : '';
+    this._els.camRow.style.display = isPractice ? 'none' : '';
   }
 
   update() {
@@ -239,6 +290,7 @@ export class UIManager {
     setActive('guidesSecBtn', st.ui.showGuidesSec);
     setActive('triBtn', st.ui.showTri);
     setActive('orthoTableBtn', st.ui.showOrthoTable);
+    setActive('edgeDimsBtn', st.ui.showEdgeDims);
     setActive('cubeRecoBtn', st.ui.showRecognized);
     setActive('rawGraphBtn', st.ui.showRawGraph);
     setActive('simpGraphBtn', st.ui.showSimplifiedGraph);
@@ -255,6 +307,7 @@ export class UIManager {
     this._updatePanelVisibility();
     this._updateCameraControls();
     this.panels.update();
+    this._rebuildSegTypes();
   }
 
   _updatePanelVisibility() {
@@ -266,14 +319,15 @@ export class UIManager {
       this._els.panelSize.style.display = 'none';
       this._els.panelRot.style.display = 'none';
       this._els.panelOrtho.style.display = 'none';
+      this._els.panelEdgeDims.style.display = 'none';
       this._els.panelSnap.style.display = (tm === 'size' || tm === 'full') ? '' : 'none';
-      this._els.panelSegStyle.style.display = (tm === 'rotation' || tm === 'full') ? '' : 'none';
     } else {
       this._els.panelSnap.style.display = 'none';
-      this._els.panelSegStyle.style.display = 'none';
       this._els.panelSize.style.display = (tm === 'size' || tm === 'full') ? '' : 'none';
       this._els.panelRot.style.display = (tm === 'rotation' || tm === 'full') ? '' : 'none';
       this._els.panelOrtho.style.display = this.state.ui.showOrthoTable ? '' : 'none';
+      this._els.panelEdgeDims.style.display =
+        (this.state.ui.showEdgeDims && this.state.document.selectedBoxId) ? '' : 'none';
     }
   }
 }

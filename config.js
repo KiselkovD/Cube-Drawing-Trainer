@@ -1,6 +1,11 @@
 export const COLORS = {
   rainbow: ['#ff5c5c', '#ff8a4a', '#ffd888', '#8affb8', '#7ab8ff', '#c0a0ff', '#ff6ad5'],
-  segment: { solid: '#8affb8', dashed: '#c0a0ff', selected: '#ffd888' },
+  segment: {
+    normal: '#8affb8',
+    ignored: '#777788',
+    secondary: '#c0a0ff',
+    selected: '#ffd888',
+  },
   box: { main: '#7ab8ff', link: '#c0a0ff', selected: '#ffd888' },
   vp: {
     x: [122, 184, 255],

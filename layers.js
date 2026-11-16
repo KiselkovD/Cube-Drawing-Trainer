@@ -399,12 +399,15 @@ export function drawSegments(ctx, state, mode) {
 
   for (const s of list) {
     const selected = s.id === selId;
-    const isDashed = s.style === 'dashed';
-    const color = selected ? COLORS.segment.selected : (isDashed ? COLORS.segment.dashed : COLORS.segment.solid);
+    const type = s.style || 'normal';
+    const baseColor = COLORS.segment[type] || COLORS.segment.normal;
+    const color = selected ? COLORS.segment.selected : baseColor;
+
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = selected ? 2.5 : 2;
-    if (isDashed) ctx.setLineDash([6, 4]);
+    if (type === 'ignored') ctx.setLineDash([6, 4]);
+    else if (type === 'secondary') ctx.setLineDash([2, 4]);
     ctx.beginPath();
     ctx.moveTo(s.a.x, s.a.y);
     ctx.lineTo(s.b.x, s.b.y);
@@ -412,7 +415,7 @@ export function drawSegments(ctx, state, mode) {
     ctx.restore();
 
     for (const pt of [s.a, s.b]) {
-      ctx.fillStyle = selected ? COLORS.segment.selected : (isDashed ? COLORS.segment.dashed : '#7ab8ff');
+      ctx.fillStyle = selected ? COLORS.segment.selected : baseColor;
       ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.85)';
       ctx.lineWidth = 1; ctx.stroke();
@@ -711,7 +714,6 @@ export function drawAnalysisVPs(ctx, analysis, camera, view) {
 }
 
 export function drawAnalysisInfo(ctx, analysis, camera) {
-  const pp = camera.principalPoint;
   for (const r of analysis) {
     if (!r.success) continue;
     const centerVid = r.structure.type === 3 ? r.structure.C : r.structure.A;
@@ -721,19 +723,16 @@ export function drawAnalysisInfo(ctx, analysis, camera) {
     if (!sc) continue;
 
     const lines = [];
+    if (r.sides && r.sides.length === 3) {
+      const mean = (r.sides[0] + r.sides[1] + r.sides[2]) / 3;
+      const n0 = r.sides[0] / mean;
+      const n1 = r.sides[1] / mean;
+      const n2 = r.sides[2] / mean;
+      const maxDev = Math.max(Math.abs(n0 - 1), Math.abs(n1 - 1), Math.abs(n2 - 1));
+      lines.push(`Sides: ${n0.toFixed(2)} × ${n1.toFixed(2)} × ${n2.toFixed(2)} (±${(maxDev * 100).toFixed(1)}%)`);
+    }
     const fov = recoveredFovDeg(r.vps, camera);
     if (fov != null && isFinite(fov)) lines.push(`FOV≈${fov.toFixed(1)}°`);
-    if (r.vps) {
-      r.vps.forEach((vp, i) => {
-        const ax = ['X', 'Y', 'Z'][i % 3];
-        if (!vp) return;
-        if (vp.type === 'finite' && isFinite(vp.x) && isFinite(vp.y))
-          lines.push(`VP${ax}(${vp.x.toFixed(0)},${vp.y.toFixed(0)})`);
-        else if (vp.type === 'infinity' || vp.type === 'axisInf')
-          lines.push(`VP${ax} ∞`);
-      });
-    }
-    lines.push(`SP(${pp.x.toFixed(0)},${pp.y.toFixed(0)})`);
     if (!lines.length) continue;
 
     ctx.save();
@@ -770,4 +769,51 @@ export function drawGroupRadius(ctx, state) {
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();
+}
+
+export function drawEdgeDimensions(ctx, state, camera) {
+  const box = state.document.getSelectedBox();
+  if (!box) return;
+
+  const main_cam = box.getMainCenterCam(camera);
+  const R_main = box.getRotationMatrix();
+  const R_main_cam = mulM3M3(camera.R_wc, R_main);
+
+  const axisKeys = ['x', 'y', 'z'];
+  const axisSizes = [box.size.w, box.size.h, box.size.dep];
+  const rgba = (rgb, a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+
+  for (let ax = 0; ax < 3; ax++) {
+    const rgb = COLORS.vp[axisKeys[ax]];
+    const color = rgba(rgb, 0.95);
+    const halfSize = axisSizes[ax] / 2;
+    const axisDir = [R_main_cam[0][ax], R_main_cam[1][ax], R_main_cam[2][ax]];
+
+    const endA = add3(main_cam, scale3(axisDir, -halfSize));
+    const endB = add3(main_cam, scale3(axisDir, halfSize));
+    const sa = camera.project3D(endA);
+    const sb = camera.project3D(endB);
+    if (!sa || !sb) continue;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(sa.x, sa.y);
+    ctx.lineTo(sb.x, sb.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    for (const pt of [sa, sb]) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 }
