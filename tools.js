@@ -130,7 +130,7 @@ export class MoveTool extends Tool {
         this.state.emit();
         return;
       }
-      const box = this.state.document.hitBox(world, THRESHOLDS.hitBoxPx);
+            const box = this.state.document.hitBox(world, THRESHOLDS.hitBoxPx);
       if (box) {
         this.state.document.selectedBoxId = box.id;
         this.drag = { kind: 'box', boxId: box.id, start: { x: box.center.x, y: box.center.y }, world };
@@ -138,6 +138,37 @@ export class MoveTool extends Tool {
         return;
       }
     }
+
+    if (mode === 'practice' || mode === 'exam') {
+      if (useGroup) {
+        const list = mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
+        const affected = [];
+        for (const s of list) {
+          for (const end of ['a', 'b']) {
+            if (Math.hypot(s[end].x - world.x, s[end].y - world.y) <= r) {
+              affected.push({ segId: s.id, end, orig: { x: s[end].x, y: s[end].y } });
+            }
+          }
+        }
+        if (affected.length) {
+          this.drag = { kind: 'endpoints', endpoints: affected, mode, world };
+          this.state.emit();
+          return;
+        }
+        this.drag = { kind: 'pan', world };
+        this.state.emit();
+        return;
+      }
+      const ep = this.state.document.hitSegmentEndpoint(world, THRESHOLDS.hitSegEndpointPx, mode);
+      if (ep) {
+        const list = mode === 'exam' ? this.state.document.examSegments : this.state.document.segments;
+        const seg = list.find((s) => s.id === ep.segId);
+        this.drag = { kind: 'endpoint', segId: ep.segId, end: ep.end, mode, orig: { x: seg[ep.end].x, y: seg[ep.end].y }, world };
+        this.state.emit();
+        return;
+      }
+    }
+
     this.drag = { kind: 'pan', world };
   }
 
